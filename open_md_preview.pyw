@@ -417,7 +417,7 @@ def save_config(obj):
 
 
 APP_NAME = "PureMD"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 APP_EMAIL = "xkwwang@126.com"
 # 发布到 GitHub 后，把这里填成你的 Releases API 地址（留空则不做更新检查），例如：
 #   https://api.github.com/repos/<你的用户名>/<仓库名>/releases/latest

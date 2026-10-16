@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller pywebview
+          pip install pyinstaller pywebview markdown-it-py[linkify] python-docx
 
       - name: Build executable
         run: |
@@ -37,6 +37,7 @@ jobs:
             --icon mdpreview/md_preview.ico `
             --add-data "mdpreview;mdpreview" `
             --collect-data webview --collect-submodules webview `
+            --collect-data docx --collect-submodules markdown_it --collect-submodules docx `
             --hidden-import webview.platforms.edgechromium `
             open_md_preview.pyw
 
