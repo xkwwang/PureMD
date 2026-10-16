@@ -772,7 +772,11 @@
         });
       }
       // 点击空白处关闭列表面板
-      document.addEventListener("click", function (e) {
+      // 点面板外部自动关闭（含点文档预览区）。
+      // 关键坑：内容区是 iframe，点击 iframe 内部时 click 事件不会冒泡到本文档，
+      // 只有 pointerdown/mousedown 会在 iframe 元素上冒泡 —— 所以必须监听按下事件，
+      // 否则"点文档区关不掉 ☰ 菜单"。click 监听保留作父文档内普通点击的兜底。
+      function __tablistOutsideClose(e) {
         try {
           var box = document.getElementById("tablist");
           var btn = document.getElementById("navList");
@@ -780,7 +784,9 @@
           if (btn && btn.contains(e.target)) return;
           if (!box.contains(e.target)) toggleTabList(false);
         } catch (err) {}
-      });
+      }
+      document.addEventListener("pointerdown", __tablistOutsideClose, true);
+      document.addEventListener("click", __tablistOutsideClose);
       var _t = document.getElementById("tabs");
       if (_t && _t.addEventListener) {
         _t.addEventListener("wheel", function (e) {
