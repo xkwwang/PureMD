@@ -25,8 +25,10 @@ from docx.shared import Cm, Pt, RGBColor
 from markdown_it import MarkdownIt
 
 # ---------------------------------------------------------------- 常量
-CODE_FONT = "Consolas"                 # 代码字体（等宽）
-BODY_EA_FONT = "微软雅黑"              # 正文中文字体（西文走 Calibri）
+CODE_FONT = "Consolas"                 # 代码字体（等宽，不随正文方案）
+LATIN_FONT = "Times New Roman"         # 西文/数字统一字体
+HEADING_EA_FONT = "黑体"               # 中文标题字体
+BODY_EA_FONT = "宋体"                  # 中文正文字体
 INLINE_CODE_FILL = "F0F1F3"            # 行内代码底色（GitHub 风）
 CODE_BLOCK_FILL = "F6F8FA"             # 代码块底色
 TABLE_HEAD_FILL = "EDEFF2"             # 表头底色
@@ -55,13 +57,23 @@ def _set_run_fonts(run, ascii_font, ea_font=None):
         rFonts.set(qn("w:eastAsia"), ea_font)
 
 
-def _set_style_ea(style, ea_font):
-    """给段落样式补中文字体（Heading / Normal 等）。"""
+def _set_style_fonts(style, latin_font, ea_font):
+    """给样式显式设置西文+中文字体。
+
+    必须先删除 rFonts 上的主题属性（asciiTheme/hAnsiTheme/eastAsiaTheme/cstheme）：
+    OOXML 规范里主题 属性会 supersede 同名显式属性，不删的话设了也白设。
+    """
     rPr = style.element.get_or_add_rPr()
     rFonts = rPr.find(qn("w:rFonts"))
     if rFonts is None:
         rFonts = OxmlElement("w:rFonts")
         rPr.append(rFonts)
+    for attr in ("w:asciiTheme", "w:hAnsiTheme", "w:eastAsiaTheme", "w:cstheme"):
+        if rFonts.get(qn(attr)) is not None:
+            del rFonts.attrib[qn(attr)]
+    rFonts.set(qn("w:ascii"), latin_font)
+    rFonts.set(qn("w:hAnsi"), latin_font)
+    rFonts.set(qn("w:cs"), latin_font)
     rFonts.set(qn("w:eastAsia"), ea_font)
 
 
@@ -144,16 +156,21 @@ def _add_hyperlink(paragraph, url, text, bold=False, italic=False, strike=False)
 
 # ---------------------------------------------------------------- 文档骨架
 def _setup_document(doc):
-    """A4 + 中文字体 + 中性色标题，贴近预览的观感。"""
+    """A4 + 统一字体规范 + 中性色标题。
+
+    字体（中文公文惯例）：
+      - 中文标题 → 黑体；中文正文 → 宋体
+      - 英文与数字一律 Times New Roman（标题、正文、表格、超链接均走此规则）
+      - 代码块 / 行内代码例外：保持 Consolas 等宽，不随正文方案
+    """
     normal = doc.styles["Normal"]
-    normal.font.name = "Calibri"
     normal.font.size = Pt(11)
-    _set_style_ea(normal, BODY_EA_FONT)
+    _set_style_fonts(normal, LATIN_FONT, BODY_EA_FONT)
     for lvl in range(1, 7):
         try:
             st = doc.styles["Heading %d" % lvl]
             st.font.color.rgb = RGBColor(0x1F, 0x23, 0x28)
-            _set_style_ea(st, BODY_EA_FONT)
+            _set_style_fonts(st, LATIN_FONT, HEADING_EA_FONT)
         except KeyError:
             pass
     sec = doc.sections[0]
@@ -369,7 +386,7 @@ class _Converter:
         while lines and not lines[-1].strip():
             lines.pop()
         run = p.add_run()
-        _set_run_fonts(run, CODE_FONT, CODE_FONT)
+        _set_run_fonts(run, CODE_FONT, BODY_EA_FONT)
         run.font.size = Pt(9)
         for i, ln in enumerate(lines):
             if i:
@@ -508,7 +525,7 @@ class _Converter:
         if seg.get("strike"):
             r.font.strike = True
         if seg.get("code"):
-            _set_run_fonts(r, CODE_FONT, CODE_FONT)
+            _set_run_fonts(r, CODE_FONT, BODY_EA_FONT)
             r.font.size = Pt(10)
             _shade_run(r, INLINE_CODE_FILL)
 

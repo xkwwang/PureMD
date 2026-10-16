@@ -132,26 +132,26 @@
     body:not(.light):not(.beige) #tablist { background: #161b22; border-color: #30363d; }
     body:not(.light):not(.beige) #tablist .li:hover,
     body:not(.light):not(.beige) #tablist .li.active { background: #30363d; }
-    body:not(.light):not(.beige) #helpMenu { background: #161b22; border-color: #30363d; }
-    body:not(.light):not(.beige) #helpMenu .hli:hover { background: #30363d; }
+    body:not(.light):not(.beige) .popmenu { background: #161b22; border-color: #30363d; }
+    body:not(.light):not(.beige) .popmenu .hli:hover { background: #30363d; }
     body:not(.light):not(.beige) iframe { background: #0d1117; }
     body:not(.light):not(.beige) .empty { color: #8b949e; }
   }
-  /* 帮助下拉菜单（顶栏「帮助」按钮弹出：反馈 / 关于） */
-  #helpMenu {
+  /* 顶栏下拉菜单（「导出」「帮助」共用同一套 UI：出现在按钮正下方，点外部自动关闭） */
+  .popmenu {
     position: fixed; z-index: 60; display: none;
     min-width: 120px; background: #fff; border: 1px solid #d0d7de; border-radius: 6px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, .18); padding: 4px;
   }
-  #helpMenu .hli {
+  .popmenu .hli {
     display: block; padding: 6px 14px; border-radius: 4px; cursor: pointer;
     font-size: 13px; white-space: nowrap;
   }
-  #helpMenu .hli:hover { background: #eaeef2; }
-  body.dark #helpMenu { background: #161b22; border-color: #30363d; box-shadow: 0 4px 16px rgba(0, 0, 0, .5); }
-  body.dark #helpMenu .hli:hover { background: #30363d; }
-  body.beige #helpMenu { background: #f4ecd8; border-color: #d8cba8; }
-  body.beige #helpMenu .hli:hover { background: #e0d5b8; }
+  .popmenu .hli:hover { background: #eaeef2; }
+  body.dark .popmenu { background: #161b22; border-color: #30363d; box-shadow: 0 4px 16px rgba(0, 0, 0, .5); }
+  body.dark .popmenu .hli:hover { background: #30363d; }
+  body.beige .popmenu { background: #f4ecd8; border-color: #d8cba8; }
+  body.beige .popmenu .hli:hover { background: #e0d5b8; }
   /* 反馈 / 关于弹窗：直接把邮箱弹出来（支持一键复制）/ 显示版本信息 */
   #fbModal, #aboutModal {
     position: fixed; inset: 0; z-index: 200; display: none;
@@ -194,11 +194,10 @@
 <body>
   <div id="topbar">
     <button class="toolbtn" id="openBtn">打开文件</button>
+    <button class="theme" id="themeBtn" onclick="toggleTheme()">主题：亮色</button>
+    <button class="toolbtn" id="exportBtn" title="导出：PDF / Word（.docx）">导出</button>
     <button class="toolbtn" id="reloadBtn">重新加载</button>
     <label><input type="checkbox" id="watchChk"> 自动刷新</label>
-    <button class="theme" id="themeBtn" onclick="toggleTheme()">主题：亮色</button>
-    <button class="toolbtn" id="exportBtn" title="把当前文档导出为 PDF（打印对话框里选“另存为 PDF”）">导出</button>
-    <button class="toolbtn" id="docxBtn" title="把当前文档导出为 .docx Word 文件（可编辑）">导出Word</button>
     <button class="toolbtn" id="helpBtn" title="帮助：反馈问题 / 关于本软件">帮助</button>
     <span id="status"></span>
   </div>
@@ -209,7 +208,11 @@
     <button class="nav" id="navNext" title="标签向右滚动">&#8250;</button>
   </div>
   <div id="tablist"></div>
-  <div id="helpMenu">
+  <div id="exportMenu" class="popmenu">
+    <div class="hli" id="expPdf" title="走系统打印对话框，选“另存为 PDF”">导出 PDF</div>
+    <div class="hli" id="expWord" title="保存为可编辑的 .docx Word 文件">导出 Word</div>
+  </div>
+  <div id="helpMenu" class="popmenu">
     <div class="hli" id="helpFeedback">反馈</div>
     <div class="hli" id="helpAbout">关于</div>
   </div>
@@ -527,49 +530,76 @@
       } catch (err) {}
     }
 
+    // ---- 菜单系统：☰面板 / 「导出」/ 「帮助」共用一套开合与掩体逻辑 ----
+    function _closePopMenus(exceptId) {
+      // 同一时刻只开一个顶栏下拉：开一个先收其它
+      var ids = ["exportMenu", "helpMenu"];
+      for (var i = 0; i < ids.length; i++) {
+        if (ids[i] === exceptId) continue;
+        var m = document.getElementById(ids[i]);
+        if (m) m.style.display = "none";
+      }
+    }
+    function _anyMenuOpen() {
+      var tl = document.getElementById("tablist");
+      var hm = document.getElementById("helpMenu");
+      var em = document.getElementById("exportMenu");
+      return (tl && tl.style.display === "block")
+          || (hm && hm.style.display === "block")
+          || (em && em.style.display === "block");
+    }
+    function _syncMask() {
+      // 有任一面板/菜单开着就保留掩体（iframe 内点击不冒泡，靠它兜底），全关即撤
+      var mask = document.getElementById("tabmask");
+      if (mask) mask.style.display = _anyMenuOpen() ? "block" : "none";
+    }
     function toggleTabList(force) {
       try {
         var box = document.getElementById("tablist");
         var btn = document.getElementById("navList");
         if (!box || !btn) return;
-        var mask = document.getElementById("tabmask");
         var show = (typeof force === "boolean") ? force : (box.style.display !== "block");
         if (show) {
           renderTabList();
+          _closePopMenus(null);                 // 顶栏下拉让位
           var r = btn.getBoundingClientRect();   // 让面板出现在按钮正下方
           box.style.left = Math.max(4, r.left) + "px";
           box.style.top = (r.bottom + 4) + "px";
           box.style.display = "block";
+          var mask = document.getElementById("tabmask");
           if (mask) mask.style.display = "block";
         } else {
           box.style.display = "none";
-          if (mask) mask.style.display = "none";
+          _syncMask();
         }
       } catch (err) {}
     }
 
-    // ---- 帮助菜单（顶栏「帮助」→ 反馈 / 关于）----
-    function toggleHelpMenu(force) {
+    // ---- 顶栏下拉菜单（「导出」「帮助」共用；按钮 id = 菜单 id 去掉 Menu 后缀）----
+    function toggleMenu(menuId, force) {
       try {
-        var menu = document.getElementById("helpMenu");
-        var btn = document.getElementById("helpBtn");
+        var menu = document.getElementById(menuId);
+        var btn = document.getElementById(menuId.replace(/Menu$/, "Btn"));
         if (!menu || !btn) return;
-        var mask = document.getElementById("tabmask");
         var show = (typeof force === "boolean") ? force : (menu.style.display !== "block");
         if (show) {
+          _closePopMenus(menuId);                // 收起另一个下拉
+          var tl = document.getElementById("tablist");
+          if (tl) tl.style.display = "none";     // ☰ 面板也让位
           var r = btn.getBoundingClientRect();   // 菜单出现在按钮正下方
           menu.style.left = Math.max(4, r.left) + "px";
           menu.style.top = (r.bottom + 4) + "px";
           menu.style.display = "block";
+          var mask = document.getElementById("tabmask");
           if (mask) mask.style.display = "block";
         } else {
           menu.style.display = "none";
-          // 标签列表面板还开着就不能撤掩体
-          var box = document.getElementById("tablist");
-          if (mask && !(box && box.style.display === "block")) mask.style.display = "none";
+          _syncMask();
         }
       } catch (err) {}
     }
+    function toggleExportMenu(force) { toggleMenu("exportMenu", force); }
+    function toggleHelpMenu(force) { toggleMenu("helpMenu", force); }
     function showAboutModal() {
       try {
         var v = document.getElementById("aboutVer");
@@ -862,9 +892,11 @@
         var ha = document.getElementById("helpAbout");
         if (ha) ha.addEventListener("click", function () { toggleHelpMenu(false); showAboutModal(); });
         var exb = document.getElementById("exportBtn");
-        if (exb) exb.addEventListener("click", function () { exportPdf(); });
-        var dxb = document.getElementById("docxBtn");
-        if (dxb) dxb.addEventListener("click", function () { exportDocx(); });
+        if (exb) exb.addEventListener("click", function (e) { e.stopPropagation(); toggleExportMenu(); });
+        var ep = document.getElementById("expPdf");
+        if (ep) ep.addEventListener("click", function () { toggleExportMenu(false); exportPdf(); });
+        var ew = document.getElementById("expWord");
+        if (ew) ew.addEventListener("click", function () { toggleExportMenu(false); exportDocx(); });
       } catch (e) {}
     }
     wireToolbar();
@@ -880,8 +912,8 @@
       // 透明掩体：菜单打开时盖住文档区，点它即关闭（iframe 内点击不冒泡的可靠解法）
       var _m = document.getElementById("tabmask");
       if (_m) {
-        _m.addEventListener("mousedown", function () { toggleTabList(false); toggleHelpMenu(false); });
-        _m.addEventListener("click", function () { toggleTabList(false); toggleHelpMenu(false); });
+        _m.addEventListener("mousedown", function () { toggleTabList(false); toggleExportMenu(false); toggleHelpMenu(false); });
+        _m.addEventListener("click", function () { toggleTabList(false); toggleExportMenu(false); toggleHelpMenu(false); });
       }
       // 标签条接收拖放：实时把被拖的标签插入到指针所在位置
       var _tc = document.getElementById("tabs");
@@ -906,7 +938,7 @@
           updateNav();
         });
       }
-      // 点击空白处关闭列表面板 / 帮助菜单（点面板与对应按钮除外）
+      // 点击空白处关闭列表面板 / 导出菜单 / 帮助菜单（点面板与对应按钮除外）
       function __menusOutsideClose(e) {
         try {
           var box = document.getElementById("tablist");
@@ -918,6 +950,11 @@
           var hb = document.getElementById("helpBtn");
           if (menu && menu.style.display === "block") {
             if (!(hb && hb.contains(e.target)) && !menu.contains(e.target)) toggleHelpMenu(false);
+          }
+          var emenu = document.getElementById("exportMenu");
+          var eb = document.getElementById("exportBtn");
+          if (emenu && emenu.style.display === "block") {
+            if (!(eb && eb.contains(e.target)) && !emenu.contains(e.target)) toggleExportMenu(false);
           }
         } catch (err) {}
       }
