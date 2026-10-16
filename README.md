@@ -12,8 +12,8 @@
 - **打开 / 重新加载 / 导出 PDF**：可一次打开多个文件；导出走系统打印对话框，选「另存为 PDF」即可存档。
 - **导出 Word（.docx）**：「导出」下拉里一键把当前文档转成可编辑的 .docx——标题/列表/表格/代码块/粗斜体/删除线/链接/图片全部保留，解析规则与预览完全一致（同一个 markdown 引擎）；字体统一为中文标题黑体、中文正文宋体、英文与数字 Times New Roman（代码保持等宽）。
 - **GBK / 中文编码自动识别**：老文档常用 GBK/GB18030 也能正常显示，不乱码。
-- **帮助菜单**：「帮助」下拉含 *反馈*（弹作者邮箱、一键复制，不自动打开邮件客户端）与 *关于*（显示版本号）。
-- **完全离线、单文件分发**：打包后只有一个文件夹，发给朋友解压即用，无需安装、无需联网。
+- **帮助菜单**：「帮助」下拉含 *检查更新*（联网查 GitHub Releases，有新版本弹窗显示版本号与更新说明，可一键打开发布页或跳过此版本）、*自动检查更新* 开关（默认开：每次启动约 2 秒后自动查一次，失败静默）、*反馈*（弹作者邮箱、一键复制，不自动打开邮件客户端）与 *关于*（显示版本号）。
+- **完全离线、单文件分发**：打包后只有一个文件夹，发给朋友解压即用，无需安装、无需联网（检查更新除外）。
 
 ## 下载与安装
 
@@ -52,13 +52,14 @@ cosign verify-blob \
 ```bash
 # 1) 准备 Python 环境（建议 3.10+，并用虚拟环境）
 python -m venv venv && venv\Scripts\activate
-pip install pyinstaller pywebview
+pip install pyinstaller pywebview markdown-it-py[linkify] python-docx
 
 # 2) 打包成单目录 exe（产物在 md_preview_app/PureMD/）
 pyinstaller --noconsole --onedir --name PureMD ^
   --icon mdpreview/md_preview.ico ^
   --add-data "mdpreview;mdpreview" ^
   --collect-data webview --collect-submodules webview ^
+  --collect-data docx --collect-submodules markdown_it --collect-submodules docx ^
   --hidden-import webview.platforms.edgechromium ^
   open_md_preview.pyw
 ```
@@ -94,6 +95,10 @@ PureMD/
 
 其中 `session.files` / `session.active` 记录上次关闭时打开的标签，下次启动时自动恢复；
 删掉这两项（或整个配置文件）即可清空历史，不影响其它功能。
+
+更新检查相关键：`auto_update_check`（`false` = 关闭启动时自动检查，仍可手动点「帮助 → 检查更新」）、
+`skipped_version`（手动「跳过此版本」后记录，不再提醒该版本；删掉该项即可恢复提醒）。
+检查更新访问 `api.github.com`，失败时静默跳过、不影响任何其它功能。
 
 ## 协议
 

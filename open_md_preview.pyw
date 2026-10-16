@@ -8,7 +8,8 @@
 - 自愈：若已有实例但已损坏（窗口没建起来 / 不响应），新实例会向旧实例发 kill 指令让其退出，自己接管端口，避免"双击完全没反应"。
 - 端口信息记录在 mdpreview/.hub.lock（格式：PID<换行>PORT），新实例据此找到在监听的端口。
 """
-import sys, os, base64, json, ctypes, socket, threading, time, atexit, subprocess
+import sys, os, base64, json, ctypes, socket, threading, time, atexit, subprocess, re
+import urllib.request
 try:
     import winreg
 except Exception:      # 非 Windows 环境下不影响其余逻辑
@@ -421,7 +422,28 @@ APP_VERSION = "1.1.0"
 APP_EMAIL = "xkwwang@126.com"
 # 发布到 GitHub 后，把这里填成你的 Releases API 地址（留空则不做更新检查），例如：
 #   https://api.github.com/repos/<你的用户名>/<仓库名>/releases/latest
-UPDATE_CHECK_URL = ""
+UPDATE_CHECK_URL = "https://api.github.com/repos/xkwwang/PureMD/releases/latest"
+
+
+def _ver_key(s):
+    """把 "v1.2.3-beta.1" 之类的版本号转成可比较的元组 (1,2,3)；非数字段按 0，忽略预发行后缀。"""
+    s = (s or "").strip().lstrip("vV")
+    core = re.split(r"[-+_ ]", s, 1)[0]
+    nums = []
+    for p in core.split("."):
+        d = "".join(ch for ch in p if ch.isdigit())
+        nums.append(int(d) if d else 0)
+    while len(nums) < 3:
+        nums.append(0)
+    return tuple(nums[:4])
+
+
+def _ver_gt(a, b):
+    """a 是否比 b 新（语义化比较；相等或无法解析时返回 False）。"""
+    try:
+        return _ver_key(a) > _ver_key(b)
+    except Exception:
+        return False
 
 
 class Api:
@@ -514,22 +536,59 @@ class Api:
         save_config(obj or {})
         return True
 
-    def check_update(self):
-        """查询 GitHub Releases 是否有新版本。未配置 UPDATE_CHECK_URL 时返回 None。"""
+    def check_update(self, manual=False):
+        """查询 GitHub Releases 是否有新版本。
+
+        返回 {ok, has_update, current, latest, url, name, notes, error}：
+        - manual=True：用户主动点「检查更新」——忽略自动开关与"跳过此版本"，失败时带错误详情
+        - manual=False：启动时自动检查——尊重 auto_update_check 开关与 skipped_version，失败静默
+        网络访问走 urllib 默认链路（环境变量 / 系统代理均自动生效）。
+        """
+        result = {"ok": False, "has_update": False, "current": APP_VERSION, "latest": ""}
         if not UPDATE_CHECK_URL:
-            return None
+            result["error"] = "未配置更新检查地址"
+            return result
+        cfg = load_config()
+        if not manual and cfg.get("auto_update_check") is False:
+            return result                      # 用户关掉了自动检查：静默跳过
         try:
-            import urllib.request, json as _json
-            req = urllib.request.Request(UPDATE_CHECK_URL, headers={"User-Agent": APP_NAME})
-            with urllib.request.urlopen(req, timeout=6) as resp:
-                data = _json.loads(resp.read().decode("utf-8"))
-            tag = data.get("tag_name") or ""
-            ver = tag.lstrip("vV")
-            if ver and ver != APP_VERSION:
-                return {"latest": ver, "url": data.get("html_url", "")}
+            req = urllib.request.Request(UPDATE_CHECK_URL, headers={
+                "User-Agent": "%s/%s" % (APP_NAME, APP_VERSION),
+                "Accept": "application/vnd.github+json",
+            })
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            latest = (data.get("tag_name") or "").strip().lstrip("vV")
+            has = bool(latest) and _ver_gt(latest, APP_VERSION)
+            if not manual and latest and latest == (cfg.get("skipped_version") or ""):
+                has = False                    # 用户此前选择跳过这个版本
+            result.update({
+                "ok": True,
+                "has_update": has,
+                "latest": latest,
+                "url": data.get("html_url") or "",
+                "name": data.get("name") or data.get("tag_name") or "",
+                "notes": (data.get("body") or "")[:600],
+            })
+        except Exception as e:
+            result["error"] = ("%s: %s" % (type(e).__name__, e)) if manual else "网络不可达或超时"
+        return result
+
+    def open_url(self, url):
+        """用系统默认浏览器打开 URL（打开发布页下载新版本）。"""
+        if not url:
+            return False
+        try:
+            os.startfile(url)                  # Windows 首选
+            return True
         except Exception:
             pass
-        return None
+        try:                                    # 兜底：rundll32（避开 WebView2 工作线程直调 ShellExecute 的坑）
+            subprocess.Popen(["rundll32.exe", "url.dll,FileProtocolHandler", url],
+                             creationflags=0x08000000)
+            return True
+        except Exception:
+            return False
 
 
 def raise_window():

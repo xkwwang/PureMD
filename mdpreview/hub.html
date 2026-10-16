@@ -152,23 +152,23 @@
   body.dark .popmenu .hli:hover { background: #30363d; }
   body.beige .popmenu { background: #f4ecd8; border-color: #d8cba8; }
   body.beige .popmenu .hli:hover { background: #e0d5b8; }
-  /* 反馈 / 关于弹窗：直接把邮箱弹出来（支持一键复制）/ 显示版本信息 */
-  #fbModal, #aboutModal {
+  /* 反馈 / 关于 / 检查更新 弹窗 */
+  #fbModal, #aboutModal, #updateModal {
     position: fixed; inset: 0; z-index: 200; display: none;
     align-items: center; justify-content: center;
     background: rgba(0, 0, 0, .35);
   }
-  #fbModal .box, #aboutModal .box {
+  #fbModal .box, #aboutModal .box, #updateModal .box {
     background: #fff; color: #24292f; border-radius: 10px;
     padding: 20px 22px; width: 320px; max-width: 90vw;
     box-shadow: 0 10px 40px rgba(0, 0, 0, .3); text-align: center;
   }
-  body.dark #fbModal .box, body.dark #aboutModal .box { background: #161b22; color: #c9d1d9; }
-  body.beige #fbModal .box, body.beige #aboutModal .box { background: #f4ecd8; color: #4a3b28; }
-  #fbModal .box h3, #aboutModal .box h3 { margin: 0 0 6px; font-size: 15px; }
-  #fbModal .box p, #aboutModal .box p { margin: 0 0 14px; font-size: 12px; color: #6e7781; line-height: 1.5; }
-  body.dark #fbModal .box p, body.dark #aboutModal .box p { color: #8b949e; }
-  body.beige #fbModal .box p, body.beige #aboutModal .box p { color: #6b5c46; }
+  body.dark #fbModal .box, body.dark #aboutModal .box, body.dark #updateModal .box { background: #161b22; color: #c9d1d9; }
+  body.beige #fbModal .box, body.beige #aboutModal .box, body.beige #updateModal .box { background: #f4ecd8; color: #4a3b28; }
+  #fbModal .box h3, #aboutModal .box h3, #updateModal .box h3 { margin: 0 0 6px; font-size: 15px; }
+  #fbModal .box p, #aboutModal .box p, #updateModal .box p { margin: 0 0 14px; font-size: 12px; color: #6e7781; line-height: 1.5; }
+  body.dark #fbModal .box p, body.dark #aboutModal .box p, body.dark #updateModal .box p { color: #8b949e; }
+  body.beige #fbModal .box p, body.beige #aboutModal .box p, body.beige #updateModal .box p { color: #6b5c46; }
   #aboutModal .ver {
     display: inline-block; font-size: 15px; font-weight: 700;
     background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px;
@@ -183,12 +183,21 @@
   }
   body.dark #fbModal .email { background: #21262d; border-color: #30363d; }
   body.beige #fbModal .email { background: #e6dcc3; border-color: #d8cba8; }
-  #fbModal .box button, #aboutModal .box button {
+  /* 更新说明：小字号可滚动，保留换行 */
+  #updateModal .notes {
+    text-align: left; font-size: 12px; line-height: 1.6; white-space: pre-wrap;
+    word-break: break-word; max-height: 180px; overflow-y: auto;
+    background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px;
+    padding: 10px 12px; margin: 0 0 14px; user-select: text;
+  }
+  body.dark #updateModal .notes { background: #21262d; border-color: #30363d; }
+  body.beige #updateModal .notes { background: #e6dcc3; border-color: #d8cba8; }
+  #fbModal .box button, #aboutModal .box button, #updateModal .box button {
     border: 1px solid #d0d7de; background: #fff; color: #24292f;
     border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 13px;
   }
-  body.dark #fbModal .box button, body.dark #aboutModal .box button { background: #21262d; color: #c9d1d9; border-color: #30363d; }
-  body.beige #fbModal .box button, body.beige #aboutModal .box button { background: #e6dcc3; color: #4a3b28; border-color: #d8cba8; }
+  body.dark #fbModal .box button, body.dark #aboutModal .box button, body.dark #updateModal .box button { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+  body.beige #fbModal .box button, body.beige #aboutModal .box button, body.beige #updateModal .box button { background: #e6dcc3; color: #4a3b28; border-color: #d8cba8; }
 </style>
 </head>
 <body>
@@ -213,6 +222,8 @@
     <div class="hli" id="expWord" title="保存为可编辑的 .docx Word 文件">导出 Word</div>
   </div>
   <div id="helpMenu" class="popmenu">
+    <div class="hli" id="helpUpdate" title="查询 GitHub Releases 是否有新版本">检查更新</div>
+    <div class="hli" id="helpAutoChk" title="启动时自动检查新版本（需能访问 api.github.com）">自动检查更新：开</div>
     <div class="hli" id="helpFeedback">反馈</div>
     <div class="hli" id="helpAbout">关于</div>
   </div>
@@ -716,12 +727,10 @@
               if (wc) wc.checked = cfg.autoWatch;
             }
           }).catch(function () {});
-          // 若已发布到 GitHub，检查新版本（未配置 UPDATE_CHECK_URL 时返回 null，无副作用）
-          window.pywebview.api.check_update().then(function (up) {
-            if (up && up.latest) {
-              setStatus("发现新版本 v" + up.latest + (up.url ? "，下载：" + up.url : ""));
-            }
-          }).catch(function () {});
+          // 启动 2.5s 后自动检查新版本（异步不阻塞首屏；失败静默；可在帮助菜单关掉）
+          if (cfg && typeof cfg.auto_update_check === "boolean") cfgAutoChk = cfg.auto_update_check;
+          setAutoChkLabel();
+          setTimeout(function () { checkUpdateFlow(false); }, 2500);
         }
       } catch (e) {}
     })();
@@ -768,13 +777,84 @@
         }
       } catch (err) { setStatus("复制失败：" + err); }
     }
-    // 点击弹窗外区域关闭（反馈 / 关于）
+    // ---- 检查更新 ----
+    var pendingUpdate = null;   // 当前弹窗里的更新信息
+    var cfgAutoChk = true;      // 自动检查开关（启动时从本地配置恢复）
+    function showUpdateModal(up) {
+      try {
+        pendingUpdate = up || null;
+        var v = document.getElementById("updVer");
+        if (v) v.textContent = "PureMD v" + APP_VERSION + "  →  v" + (up && up.latest ? up.latest : "?");
+        var n = document.getElementById("updNotes");
+        if (n) n.textContent = (up && up.notes) ? up.notes : "（该版本没有提供说明）";
+        var m = document.getElementById("updateModal");
+        if (m) m.style.display = "flex";
+      } catch (err) {}
+    }
+    function closeUpdateModal() {
+      try { var m = document.getElementById("updateModal"); if (m) m.style.display = "none"; } catch (err) {}
+    }
+    function openReleasePage() {
+      try {
+        var url = (pendingUpdate && pendingUpdate.url) ? pendingUpdate.url : "";
+        if (!url) { setStatus("该版本没有提供下载地址"); return; }
+        if (hasApi() && window.pywebview.api.open_url) {
+          window.pywebview.api.open_url(url).then(function (ok) {
+            setStatus(ok ? "已请求浏览器打开发布页" : "打开浏览器失败，请手动访问：" + url);
+          }).catch(function () { setStatus("打开浏览器失败，请手动访问：" + url); });
+        } else {
+          setStatus("请手动访问：" + url);
+        }
+        closeUpdateModal();
+      } catch (e) {}
+    }
+    function skipThisVersion() {
+      try {
+        if (pendingUpdate && pendingUpdate.latest) {
+          saveCfg({ skipped_version: pendingUpdate.latest });
+          setStatus("已跳过 v" + pendingUpdate.latest + "，下次发布新版本时再提醒");
+        }
+        closeUpdateModal();
+      } catch (e) {}
+    }
+    function setAutoChkLabel() {
+      try {
+        var it = document.getElementById("helpAutoChk");
+        if (it) it.textContent = "自动检查更新：" + (cfgAutoChk ? "开" : "关");
+      } catch (e) {}
+    }
+    // manual=true：用户主动检查（总是联网、总报告结果）；false：启动自动检查（静默）
+    function checkUpdateFlow(manual) {
+      try {
+        if (!hasApi() || !window.pywebview.api.check_update) {
+          if (manual) setStatus("此功能需要更新后的 exe");
+          return;
+        }
+        if (manual) setStatus("正在检查更新…");
+        window.pywebview.api.check_update(manual).then(function (up) {
+          if (!up) { if (manual) setStatus("检查更新失败：接口无响应"); return; }
+          if (up.ok && up.has_update) {
+            if (manual) setStatus("发现新版本 v" + up.latest);
+            showUpdateModal(up);
+          } else if (up.ok) {
+            if (manual) setStatus("已是最新版本（v" + up.current + "）");
+          } else if (manual) {
+            setStatus("检查更新失败：" + (up.error || "未知错误"));
+          }
+        }).catch(function (e) {
+          if (manual) setStatus("检查更新失败：" + (e && e.message ? e.message : e));
+        });
+      } catch (e) {}
+    }
+    // 点击弹窗外区域关闭（反馈 / 关于 / 检查更新）
     document.addEventListener("click", function (e) {
       try {
         var m = document.getElementById("fbModal");
         if (m && m.style.display === "flex" && e.target === m) m.style.display = "none";
         var a = document.getElementById("aboutModal");
         if (a && a.style.display === "flex" && e.target === a) a.style.display = "none";
+        var u = document.getElementById("updateModal");
+        if (u && u.style.display === "flex" && e.target === u) u.style.display = "none";
       } catch (err) {}
     });
 
@@ -891,6 +971,16 @@
         });
         var ha = document.getElementById("helpAbout");
         if (ha) ha.addEventListener("click", function () { toggleHelpMenu(false); showAboutModal(); });
+        var hu = document.getElementById("helpUpdate");
+        if (hu) hu.addEventListener("click", function () { toggleHelpMenu(false); checkUpdateFlow(true); });
+        var hc = document.getElementById("helpAutoChk");
+        if (hc) hc.addEventListener("click", function () {
+          // 不收起菜单，便于直接看到标签文案变化
+          cfgAutoChk = !cfgAutoChk;
+          setAutoChkLabel();
+          saveCfg({ auto_update_check: cfgAutoChk });
+          setStatus(cfgAutoChk ? "自动检查更新：开（每次启动时检查）" : "自动检查更新：关（仍可在帮助菜单手动检查）");
+        });
         var exb = document.getElementById("exportBtn");
         if (exb) exb.addEventListener("click", function (e) { e.stopPropagation(); toggleExportMenu(); });
         var ep = document.getElementById("expPdf");
@@ -991,6 +1081,16 @@
       <p>作者邮箱：xkwwang@126.com</p>
       <button type="button" onclick="copyAboutEmail()">复制邮箱</button>
       <button type="button" onclick="closeAboutModal()" style="margin-left:8px">关闭</button>
+    </div>
+  </div>
+  <div id="updateModal">
+    <div class="box">
+      <h3>发现新版本</h3>
+      <p id="updVer">PureMD v1.1.0</p>
+      <div class="notes" id="updNotes"></div>
+      <button type="button" onclick="openReleasePage()">打开发布页</button>
+      <button type="button" onclick="skipThisVersion()" style="margin-left:8px">跳过此版本</button>
+      <button type="button" onclick="closeUpdateModal()" style="margin-left:8px">关闭</button>
     </div>
   </div>
 </body>
