@@ -18,7 +18,7 @@ if exist "md_preview_app\PureMD" (
 )
 
 echo Building... (this takes 1-3 minutes, please wait)
-"%PYI%" --noconsole --onedir --name PureMD --icon mdpreview\md_preview.ico --add-data "mdpreview;mdpreview" --collect-data webview --collect-submodules webview --hidden-import webview.platforms.edgechromium --distpath md_preview_app open_md_preview.pyw
+"%PYI%" --noconsole --onedir --name PureMD --icon mdpreview\md_preview.ico --add-data "mdpreview;mdpreview" --collect-data webview --collect-submodules webview --hidden-import webview.platforms.edgechromium --collect-data docx --collect-submodules markdown_it --collect-submodules docx --distpath md_preview_app open_md_preview.pyw
 if errorlevel 1 (
   echo BUILD FAILED
   pause

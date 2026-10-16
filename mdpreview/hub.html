@@ -198,6 +198,7 @@
     <label><input type="checkbox" id="watchChk"> 自动刷新</label>
     <button class="theme" id="themeBtn" onclick="toggleTheme()">主题：亮色</button>
     <button class="toolbtn" id="exportBtn" title="把当前文档导出为 PDF（打印对话框里选“另存为 PDF”）">导出</button>
+    <button class="toolbtn" id="docxBtn" title="把当前文档导出为 .docx Word 文件（可编辑）">导出Word</button>
     <button class="toolbtn" id="helpBtn" title="帮助：反馈问题 / 关于本软件">帮助</button>
     <span id="status"></span>
   </div>
@@ -760,6 +761,27 @@
       }
     }
 
+    // 导出当前文档为 .docx（Word）：Python 侧转换 + 原生保存对话框
+    function exportDocx() {
+      var t = activeTab();
+      if (!t || !t.path) { setStatus("当前没有可导出的文档"); return; }
+      if (!hasApi() || !window.pywebview.api.export_docx) {
+        setStatus("导出 Word 失败：接口不可用"); return;
+      }
+      setStatus("正在转换并弹出保存对话框…");
+      window.pywebview.api.export_docx(t.path).then(function (r) {
+        if (r && r.ok) {
+          setStatus("已导出 Word：" + r.path);
+        } else if (r && r.error) {
+          setStatus("导出 Word 失败：" + r.error);
+        } else {
+          setStatus("已取消导出");
+        }
+      }).catch(function (e) {
+        setStatus("导出 Word 失败：" + (e && e.message ? e.message : e));
+      });
+    }
+
     // 本地配置（主题 / 自动刷新等）持久化：读 / 写都走 Python 侧，失败时静默
     function saveCfg(obj) {
       try {
@@ -841,6 +863,8 @@
         if (ha) ha.addEventListener("click", function () { toggleHelpMenu(false); showAboutModal(); });
         var exb = document.getElementById("exportBtn");
         if (exb) exb.addEventListener("click", function () { exportPdf(); });
+        var dxb = document.getElementById("docxBtn");
+        if (dxb) dxb.addEventListener("click", function () { exportDocx(); });
       } catch (e) {}
     }
     wireToolbar();

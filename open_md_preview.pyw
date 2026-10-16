@@ -13,6 +13,7 @@ try:
     import winreg
 except Exception:      # 非 Windows 环境下不影响其余逻辑
     winreg = None
+import md2docx          # Markdown → .docx 导出（解析参数与浏览器预览一致）
 
 TEMPLATE_REL = os.path.join("mdpreview", "template.html")
 HUB_REL = os.path.join("mdpreview", "hub.html")
@@ -40,7 +41,8 @@ def show_error(msg):
 
 
 def _selftest():
-    """无界面自检：验证 webview 可导入且资源文件就位（冻结成 exe 后用于冒烟测试）。"""
+    """无界面自检：验证 webview 可导入、资源文件就位、docx 导出链可用
+    （markdown-it-py + python-docx + lxml 均随 exe 打包；冻结后用于冒烟测试）。"""
     try:
         import webview
         ver = getattr(webview, "__version__", "?")
@@ -52,6 +54,12 @@ def _selftest():
         out = "SELFTEST_OK webview=%s assets=%s\n" % (ver, assets)
     except Exception as e:
         out = "SELFTEST_FAIL %r\n" % e
+    try:
+        b = md2docx.md_to_docx("# 自检\n\n**粗体** 与 `代码`。\n")
+        ok = b.getvalue()[:2] == b"PK" and len(b.getvalue()) > 3000   # zip 魔数 + 非空
+        out += "DOCX_EXPORT=%s bytes=%d\n" % ("OK" if ok else "BAD", len(b.getvalue()))
+    except Exception as e:
+        out += "DOCX_EXPORT=FAIL %r\n" % (e,)
     try:
         with open(os.path.join(os.environ.get("TEMP", script_dir()),
                                "mdpreview_selftest.txt"), "w", encoding="utf-8") as f:
@@ -231,6 +239,81 @@ def native_open_dialog():
             return None, "comdlg32: %r；PowerShell: %r" % (e1, e2)
 
 
+# ---------------------------------------------------------------- 保存对话框（导出 .docx 用）
+SAVE_FILTER_C = "Word 文档 (*.docx)\0*.docx\0所有文件\0*.*\0"
+SAVE_FILTER_PS = "Word 文档 (*.docx)|*.docx|所有文件 (*.*)|*.*"
+SAVE_TITLE = "导出为 Word 文档"
+
+
+def _save_dialog_comdlg(default_name):
+    """Win32 GetSaveFileNameW：快、零子进程。返回路径或 None（取消）。"""
+    from ctypes import wintypes, byref, c_wchar_p, create_unicode_buffer, windll
+
+    class OPENFILENAMEW(ctypes.Structure):
+        _fields_ = [
+            ("lStructSize", wintypes.DWORD), ("hwndOwner", wintypes.HWND),
+            ("hInstance", wintypes.HINSTANCE), ("lpstrFilter", c_wchar_p),
+            ("lpstrCustomFilter", wintypes.LPWSTR), ("nMaxCustFilter", wintypes.DWORD),
+            ("nFilterIndex", wintypes.DWORD), ("lpstrFile", wintypes.LPWSTR),
+            ("nMaxFile", wintypes.DWORD), ("lpstrFileTitle", wintypes.LPWSTR),
+            ("nMaxFileTitle", wintypes.DWORD), ("lpstrInitialDir", c_wchar_p),
+            ("lpstrTitle", c_wchar_p), ("Flags", wintypes.DWORD),
+            ("nFileOffset", wintypes.WORD), ("nFileExtension", wintypes.WORD),
+            ("lpstrDefExt", c_wchar_p), ("lCustData", wintypes.LPARAM),
+            ("lpfnHook", ctypes.c_void_p), ("lpTemplateName", c_wchar_p),
+            ("pvReserved", ctypes.c_void_p), ("dwReserved", wintypes.DWORD),
+            ("FlagsEx", wintypes.DWORD),
+        ]
+
+    buf = create_unicode_buffer(4096)
+    buf.value = default_name or "document.docx"
+    ofn = OPENFILENAMEW()
+    ofn.lStructSize = ctypes.sizeof(OPENFILENAMEW)
+    ofn.lpstrFilter = SAVE_FILTER_C
+    ofn.lpstrFile = ctypes.cast(buf, wintypes.LPWSTR)
+    ofn.nMaxFile = 4096
+    ofn.lpstrTitle = SAVE_TITLE
+    ofn.lpstrDefExt = "docx"
+    # OFN_EXPLORER | OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY
+    ofn.Flags = 0x00080000 | 0x00000002 | 0x00000800 | 0x00000004
+    if not windll.comdlg32.GetSaveFileNameW(byref(ofn)):
+        return None
+    return buf.value or None
+
+
+def _save_dialog_powershell(default_name):
+    """回退：PowerShell(-STA) WinForms SaveFileDialog。返回路径或 None。"""
+    safe = (default_name or "document.docx").replace("'", "''")
+    script = (
+        "Add-Type -AssemblyName System.Windows.Forms;"
+        "$d = New-Object System.Windows.Forms.SaveFileDialog;"
+        "$d.Title = '" + SAVE_TITLE + "';"
+        "$d.Filter = '" + SAVE_FILTER_PS + "';"
+        "$d.FileName = '" + safe + "';"
+        "$d.DefaultExt = 'docx';"
+        "$d.OverwritePrompt = $true;"
+        "if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.FileName }"
+    )
+    r = subprocess.run(
+        ["powershell", "-NoProfile", "-STA", "-NonInteractive", "-Command", script],
+        capture_output=True, text=True, timeout=600,
+        creationflags=0x08000000,          # CREATE_NO_WINDOW：不闪黑框
+    )
+    out = (r.stdout or "").strip()
+    return out.splitlines()[0].strip() if out else None
+
+
+def native_save_dialog(default_name):
+    """返回 (path, err)：path 为 None 表示用户取消；err 非 None 表示两条路都失败。"""
+    try:
+        return _save_dialog_comdlg(default_name), None
+    except Exception as e1:
+        try:
+            return _save_dialog_powershell(default_name), None
+        except Exception as e2:
+            return None, "comdlg32: %r；PowerShell: %r" % (e1, e2)
+
+
 def _open_dialog_comdlg_multi():
     """多选用：Win32 GetOpenFileNameW + OFN_ALLOWMULTISELECT|OFN_EXPLORER。返回路径列表（可能为空）。"""
     from ctypes import wintypes, byref, c_wchar_p, create_unicode_buffer, windll
@@ -364,6 +447,34 @@ class Api:
             return make_payload(path)
         except Exception as e:
             return {"error": "重新渲染失败：%r" % (e,)}
+
+    def export_docx(self, path):
+        """把当前 .md 导出为 .docx：读源文件（只读）→ 转换 → 弹保存框 → 写盘。
+
+        返回 {"ok": True, "path": ...}；用户取消返回 None；失败返回 {"error": ...}。
+        源 .md 全程只读，不产生任何中间文件。
+        """
+        if not path or not os.path.isfile(path):
+            return {"error": "文件不存在：" + str(path)}
+        try:
+            text = _read_text(path)                     # 只读，编码自动识别
+            buf = md2docx.md_to_docx(text, base_dir=os.path.dirname(os.path.abspath(path)))
+        except Exception as e:
+            return {"error": "转换失败：%r" % (e,)}
+        default = os.path.splitext(os.path.basename(path))[0] + ".docx"
+        target, err = native_save_dialog(default)
+        if err:
+            return {"error": "无法打开保存对话框：" + err}
+        if not target:
+            return None                                  # 用户取消
+        if not target.lower().endswith(".docx"):
+            target += ".docx"
+        try:
+            with open(target, "wb") as f:
+                f.write(buf.getvalue())
+        except Exception as e:
+            return {"error": "写入失败：%r" % (e,)}
+        return {"ok": True, "path": target}
 
     def set_watch(self, path, on):
         try:
