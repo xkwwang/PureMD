@@ -73,6 +73,11 @@
   body.dark #tablist .li:hover, body.dark #tablist .li.active { background: #30363d; }
   body.beige #tablist { background: #f4ecd8; border-color: #d8cba8; }
   body.beige #tablist .li:hover, body.beige #tablist .li.active { background: #e0d5b8; }
+  /* ☰ 菜单打开时盖住文档区的透明掩体：点它 = 点"面板外部"，用于关闭菜单。
+     iframe 内部的点击不会冒泡到父文档（这是 WebView2/Chromium 的确定行为），
+     只有盖一层掩体才能可靠捕获"点文档区即关菜单"。顶栏/标签栏不被掩体覆盖，
+     点它们关闭菜单走 document 上的监听。 */
+  #tabmask { position: absolute; inset: 0; z-index: 40; display: none; }
   button.theme {
     flex: 0 0 auto;
     border: 1px solid #d0d7de; background: #fff; color: #24292f;
@@ -179,7 +184,7 @@
     <button class="nav" id="navNext" title="标签向右滚动">&#8250;</button>
   </div>
   <div id="tablist"></div>
-  <div id="views"><div class="empty">没有打开的文档 &mdash; 双击任意 .md 即可在此打开</div></div>
+  <div id="views"><div id="tabmask"></div><div class="empty">没有打开的文档 &mdash; 双击任意 .md 即可在此打开</div></div>
 
   <script>
     window.__pending = window.__pending || [];
@@ -494,6 +499,7 @@
         var box = document.getElementById("tablist");
         var btn = document.getElementById("navList");
         if (!box || !btn) return;
+        var mask = document.getElementById("tabmask");
         var show = (typeof force === "boolean") ? force : (box.style.display !== "block");
         if (show) {
           renderTabList();
@@ -501,8 +507,10 @@
           box.style.left = Math.max(4, r.left) + "px";
           box.style.top = (r.bottom + 4) + "px";
           box.style.display = "block";
+          if (mask) mask.style.display = "block";
         } else {
           box.style.display = "none";
+          if (mask) mask.style.display = "none";
         }
       } catch (err) {}
     }
@@ -748,6 +756,12 @@
       if (_p) _p.addEventListener("click", function () { scrollTabs(-1); });
       if (_n) _n.addEventListener("click", function () { scrollTabs(1); });
       if (_l) _l.addEventListener("click", function (e) { e.stopPropagation(); toggleTabList(); });
+      // 透明掩体：菜单打开时盖住文档区，点它即关闭（iframe 内点击不冒泡的可靠解法）
+      var _m = document.getElementById("tabmask");
+      if (_m) {
+        _m.addEventListener("mousedown", function () { toggleTabList(false); });
+        _m.addEventListener("click", function () { toggleTabList(false); });
+      }
       // 标签条接收拖放：实时把被拖的标签插入到指针所在位置
       var _tc = document.getElementById("tabs");
       if (_tc) {
