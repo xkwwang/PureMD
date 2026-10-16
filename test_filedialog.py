@@ -6,7 +6,7 @@ r"""自动测试文件选择框：弹窗后用 Win32 消息把它关掉，验证
 import sys, time, threading, subprocess, importlib.machinery, importlib.util, ctypes
 from ctypes import wintypes
 
-PYW = r"D:\00. APP\自制Markdown预览\open_md_preview.pyw"
+PYW = r"D:\00. APP\PureMD\open_md_preview.pyw"
 WM_CLOSE = 0x0010
 TITLE = "选择 Markdown 文件"
 
