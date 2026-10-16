@@ -334,7 +334,7 @@ def save_config(obj):
 
 
 APP_NAME = "PureMD"
-APP_VERSION = "1.0"
+APP_VERSION = "1.0.0"
 APP_EMAIL = "xkwwang@126.com"
 # 发布到 GitHub 后，把这里填成你的 Releases API 地址（留空则不做更新检查），例如：
 #   https://api.github.com/repos/<你的用户名>/<仓库名>/releases/latest
@@ -704,12 +704,48 @@ def start_hub(first_payload):
         return
     # 把上次保存的主题直接注入初始 HTML：首帧即正确（避免先亮后暗的闪动），
     # 也作为“下次打开仍是上次关闭时主题”的强保证。内容主题同样由全局 theme 驱动。
+    # 同一份配置里还注入：版本号（帮助→关于弹窗）、上次会话的标签（历史恢复）。
     try:
         _cfg = load_config()
+    except Exception:
+        _cfg = {}
+    try:
         _saved = _cfg.get("theme") if isinstance(_cfg, dict) else None
         if _saved in ("light", "dark", "beige"):
             hub_html = hub_html.replace('var theme = "light";', 'var theme = "%s";' % _saved, 1)
             hub_html = hub_html.replace('var userToggled = false;', 'var userToggled = true;', 1)
+    except Exception:
+        pass
+    # 注入真实版本号（前端“关于”弹窗显示 PureMD vX.Y.Z）
+    try:
+        hub_html = hub_html.replace('var APP_VERSION = "dev";', 'var APP_VERSION = "%s";' % APP_VERSION, 1)
+    except Exception:
+        pass
+    # 会话恢复：把上次关闭时开着的标签按保存顺序注入 __pending（激活项排最后，
+    # 恢复后即为当前标签）；前端 DOM 就绪后会自动 addTab 重建它们。
+    # JSON 必须转义 "</" 为 "<\/"，否则内容里的 </script> 会提前截断脚本。
+    try:
+        _sess = _cfg.get("session") if isinstance(_cfg, dict) else None
+        if isinstance(_sess, dict):
+            _paths = []
+            for _p in (_sess.get("files") or []):
+                if isinstance(_p, str) and os.path.isfile(_p) and _p not in _paths:
+                    _paths.append(_p)
+            _active = _sess.get("active") or ""
+            if _active in _paths:
+                _paths.remove(_active)
+                _paths.append(_active)   # 激活项排最后 → 恢复后即当前标签
+            _payloads = []
+            for _p in _paths:
+                try:
+                    _payloads.append(make_payload(_p))
+                except Exception:
+                    pass
+            if _payloads:
+                _json = json.dumps(_payloads, ensure_ascii=False).replace("</", "<\\/")
+                hub_html = hub_html.replace(
+                    "window.__pending = window.__pending || [];",
+                    "window.__pending = %s;" % _json, 1)
     except Exception:
         pass
     webview.create_window("PureMD", html=hub_html, width=1000, height=740, js_api=Api())

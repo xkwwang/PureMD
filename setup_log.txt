@@ -1,2 +1,0 @@
-UserChoice cleared: True
-UserChoice cleared: True

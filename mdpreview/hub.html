@@ -132,26 +132,50 @@
     body:not(.light):not(.beige) #tablist { background: #161b22; border-color: #30363d; }
     body:not(.light):not(.beige) #tablist .li:hover,
     body:not(.light):not(.beige) #tablist .li.active { background: #30363d; }
+    body:not(.light):not(.beige) #helpMenu { background: #161b22; border-color: #30363d; }
+    body:not(.light):not(.beige) #helpMenu .hli:hover { background: #30363d; }
     body:not(.light):not(.beige) iframe { background: #0d1117; }
     body:not(.light):not(.beige) .empty { color: #8b949e; }
   }
-  /* 反馈弹窗：点“反馈”后直接把邮箱弹出来，并支持一键复制 */
-  #fbModal {
+  /* 帮助下拉菜单（顶栏「帮助」按钮弹出：反馈 / 关于） */
+  #helpMenu {
+    position: fixed; z-index: 60; display: none;
+    min-width: 120px; background: #fff; border: 1px solid #d0d7de; border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .18); padding: 4px;
+  }
+  #helpMenu .hli {
+    display: block; padding: 6px 14px; border-radius: 4px; cursor: pointer;
+    font-size: 13px; white-space: nowrap;
+  }
+  #helpMenu .hli:hover { background: #eaeef2; }
+  body.dark #helpMenu { background: #161b22; border-color: #30363d; box-shadow: 0 4px 16px rgba(0, 0, 0, .5); }
+  body.dark #helpMenu .hli:hover { background: #30363d; }
+  body.beige #helpMenu { background: #f4ecd8; border-color: #d8cba8; }
+  body.beige #helpMenu .hli:hover { background: #e0d5b8; }
+  /* 反馈 / 关于弹窗：直接把邮箱弹出来（支持一键复制）/ 显示版本信息 */
+  #fbModal, #aboutModal {
     position: fixed; inset: 0; z-index: 200; display: none;
     align-items: center; justify-content: center;
     background: rgba(0, 0, 0, .35);
   }
-  #fbModal .box {
+  #fbModal .box, #aboutModal .box {
     background: #fff; color: #24292f; border-radius: 10px;
     padding: 20px 22px; width: 320px; max-width: 90vw;
     box-shadow: 0 10px 40px rgba(0, 0, 0, .3); text-align: center;
   }
-  body.dark #fbModal .box { background: #161b22; color: #c9d1d9; }
-  body.beige #fbModal .box { background: #f4ecd8; color: #4a3b28; }
-  #fbModal .box h3 { margin: 0 0 6px; font-size: 15px; }
-  #fbModal .box p { margin: 0 0 14px; font-size: 12px; color: #6e7781; line-height: 1.5; }
-  body.dark #fbModal .box p { color: #8b949e; }
-  body.beige #fbModal .box p { color: #6b5c46; }
+  body.dark #fbModal .box, body.dark #aboutModal .box { background: #161b22; color: #c9d1d9; }
+  body.beige #fbModal .box, body.beige #aboutModal .box { background: #f4ecd8; color: #4a3b28; }
+  #fbModal .box h3, #aboutModal .box h3 { margin: 0 0 6px; font-size: 15px; }
+  #fbModal .box p, #aboutModal .box p { margin: 0 0 14px; font-size: 12px; color: #6e7781; line-height: 1.5; }
+  body.dark #fbModal .box p, body.dark #aboutModal .box p { color: #8b949e; }
+  body.beige #fbModal .box p, body.beige #aboutModal .box p { color: #6b5c46; }
+  #aboutModal .ver {
+    display: inline-block; font-size: 15px; font-weight: 700;
+    background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px;
+    padding: 8px 16px; margin: 0 0 14px; user-select: all;
+  }
+  body.dark #aboutModal .ver { background: #21262d; border-color: #30363d; }
+  body.beige #aboutModal .ver { background: #e6dcc3; border-color: #d8cba8; }
   #fbModal .email {
     display: block; font-size: 16px; font-weight: 700; letter-spacing: .3px;
     background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px;
@@ -159,12 +183,12 @@
   }
   body.dark #fbModal .email { background: #21262d; border-color: #30363d; }
   body.beige #fbModal .email { background: #e6dcc3; border-color: #d8cba8; }
-  #fbModal .box button {
+  #fbModal .box button, #aboutModal .box button {
     border: 1px solid #d0d7de; background: #fff; color: #24292f;
     border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 13px;
   }
-  body.dark #fbModal .box button { background: #21262d; color: #c9d1d9; border-color: #30363d; }
-  body.beige #fbModal .box button { background: #e6dcc3; color: #4a3b28; border-color: #d8cba8; }
+  body.dark #fbModal .box button, body.dark #aboutModal .box button { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+  body.beige #fbModal .box button, body.beige #aboutModal .box button { background: #e6dcc3; color: #4a3b28; border-color: #d8cba8; }
 </style>
 </head>
 <body>
@@ -174,7 +198,7 @@
     <label><input type="checkbox" id="watchChk"> 自动刷新</label>
     <button class="theme" id="themeBtn" onclick="toggleTheme()">主题：亮色</button>
     <button class="toolbtn" id="exportBtn" title="把当前文档导出为 PDF（打印对话框里选“另存为 PDF”）">导出</button>
-    <button class="toolbtn" id="feedbackBtn" title="遇到问题？点此给作者发邮件反馈">反馈</button>
+    <button class="toolbtn" id="helpBtn" title="帮助：反馈问题 / 关于本软件">帮助</button>
     <span id="status"></span>
   </div>
   <div id="tabsbar">
@@ -184,6 +208,10 @@
     <button class="nav" id="navNext" title="标签向右滚动">&#8250;</button>
   </div>
   <div id="tablist"></div>
+  <div id="helpMenu">
+    <div class="hli" id="helpFeedback">反馈</div>
+    <div class="hli" id="helpAbout">关于</div>
+  </div>
   <div id="views"><div id="tabmask"></div><div class="empty">没有打开的文档 &mdash; 双击任意 .md 即可在此打开</div></div>
 
   <script>
@@ -196,6 +224,7 @@
     var userToggled = false;    // 用户是否手动切换过主题（决定系统深色是否还能覆盖）
     var cfgTheme = "light";     // 用户上次保存的主题（来自本地配置）
     var FEEDBACK_EMAIL = "xkwwang@126.com";  // 反馈邮箱
+    var APP_VERSION = "dev";   // 版本号（Python 侧启动时注入真实值，关于弹窗显示）
 
     // 暗色主题所需的 CSS 变量（不依赖系统 prefers-color-scheme，手动切换即可生效）。
     // 模板里这些变量的暗色取值原本只写在 @media(prefers-color-scheme:dark) 中，
@@ -399,6 +428,7 @@
       tabs.push(t);
       activate(id);
       updateNav();
+      saveSession();
     }
 
     function activate(id) {
@@ -413,6 +443,7 @@
         }
       }
       refreshTabListIfOpen();
+      saveSession();
     }
 
     // 标签栏左右滚动
@@ -444,6 +475,7 @@
         for (var i = 0; i < els.length; i++) order.push(els[i].dataset.tid);
         tabs.sort(function (a, b) { return order.indexOf(a.id) - order.indexOf(b.id); });
         refreshTabListIfOpen();
+        saveSession();
       } catch (e) {}
     }
 
@@ -515,6 +547,51 @@
       } catch (err) {}
     }
 
+    // ---- 帮助菜单（顶栏「帮助」→ 反馈 / 关于）----
+    function toggleHelpMenu(force) {
+      try {
+        var menu = document.getElementById("helpMenu");
+        var btn = document.getElementById("helpBtn");
+        if (!menu || !btn) return;
+        var mask = document.getElementById("tabmask");
+        var show = (typeof force === "boolean") ? force : (menu.style.display !== "block");
+        if (show) {
+          var r = btn.getBoundingClientRect();   // 菜单出现在按钮正下方
+          menu.style.left = Math.max(4, r.left) + "px";
+          menu.style.top = (r.bottom + 4) + "px";
+          menu.style.display = "block";
+          if (mask) mask.style.display = "block";
+        } else {
+          menu.style.display = "none";
+          // 标签列表面板还开着就不能撤掩体
+          var box = document.getElementById("tablist");
+          if (mask && !(box && box.style.display === "block")) mask.style.display = "none";
+        }
+      } catch (err) {}
+    }
+    function showAboutModal() {
+      try {
+        var v = document.getElementById("aboutVer");
+        if (v) v.textContent = "PureMD v" + APP_VERSION;
+        var m = document.getElementById("aboutModal");
+        if (m) m.style.display = "flex";
+      } catch (err) {}
+    }
+    function closeAboutModal() {
+      try { var m = document.getElementById("aboutModal"); if (m) m.style.display = "none"; } catch (err) {}
+    }
+    // ---- 会话保存：把当前打开的标签（文件路径）与激活项写入本地配置 ----
+    // 下次启动（双击 .md）时由 Python 侧读取并自动恢复这些标签
+    function saveSession() {
+      try {
+        if (!hasApi() || !window.pywebview.api.set_config) return;
+        var files = [];
+        for (var i = 0; i < tabs.length; i++) { if (tabs[i].path) files.push(tabs[i].path); }
+        var active = activeTab();
+        saveCfg({ session: { files: files, active: (active && active.path) ? active.path : "" } });
+      } catch (e) {}
+    }
+
     function closeTab(id) {
       var idx = -1;
       for (var i = 0; i < tabs.length; i++) { if (tabs[i].id === id) { idx = i; break; } }
@@ -527,10 +604,12 @@
         document.getElementById("views").innerHTML =
           '<div class="empty">没有打开的文档 &mdash; 双击任意 .md 即可在此打开</div>';
         updateNav();
+        saveSession();
         return;
       }
       activate(tabs[Math.max(0, idx - 1)].id);
       updateNav();
+      saveSession();
     }
 
     function applyTheme(iframe) {
@@ -646,12 +725,25 @@
         }
       } catch (err) { setStatus("复制失败：" + err); }
     }
-    // 点击弹窗外区域关闭
+    function copyAboutEmail() {
+      try {
+        var txt = "xkwwang@126.com";
+        var done = function () { setStatus("邮箱已复制：" + txt); };
+        var fail = function () { setStatus("复制失败，请手动复制：" + txt); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(txt).then(done, fail);
+        } else {
+          fail();
+        }
+      } catch (err) { setStatus("复制失败：" + err); }
+    }
+    // 点击弹窗外区域关闭（反馈 / 关于）
     document.addEventListener("click", function (e) {
       try {
         var m = document.getElementById("fbModal");
-        if (!m || m.style.display !== "flex") return;
-        if (e.target === m) m.style.display = "none";
+        if (m && m.style.display === "flex" && e.target === m) m.style.display = "none";
+        var a = document.getElementById("aboutModal");
+        if (a && a.style.display === "flex" && e.target === a) a.style.display = "none";
       } catch (err) {}
     });
 
@@ -737,11 +829,16 @@
             setStatus("自动刷新失败：" + (e && e.message ? e.message : e));
           });
         });
-        var fb = document.getElementById("feedbackBtn");
-        if (fb) fb.addEventListener("click", function () {
+        var hb = document.getElementById("helpBtn");
+        if (hb) hb.addEventListener("click", function (e) { e.stopPropagation(); toggleHelpMenu(); });
+        var hf = document.getElementById("helpFeedback");
+        if (hf) hf.addEventListener("click", function () {
+          toggleHelpMenu(false);
           // 只弹出邮箱信息，不自动拉起邮件客户端
           showFeedbackModal(FEEDBACK_EMAIL);
         });
+        var ha = document.getElementById("helpAbout");
+        if (ha) ha.addEventListener("click", function () { toggleHelpMenu(false); showAboutModal(); });
         var exb = document.getElementById("exportBtn");
         if (exb) exb.addEventListener("click", function () { exportPdf(); });
       } catch (e) {}
@@ -759,8 +856,8 @@
       // 透明掩体：菜单打开时盖住文档区，点它即关闭（iframe 内点击不冒泡的可靠解法）
       var _m = document.getElementById("tabmask");
       if (_m) {
-        _m.addEventListener("mousedown", function () { toggleTabList(false); });
-        _m.addEventListener("click", function () { toggleTabList(false); });
+        _m.addEventListener("mousedown", function () { toggleTabList(false); toggleHelpMenu(false); });
+        _m.addEventListener("click", function () { toggleTabList(false); toggleHelpMenu(false); });
       }
       // 标签条接收拖放：实时把被拖的标签插入到指针所在位置
       var _tc = document.getElementById("tabs");
@@ -785,22 +882,23 @@
           updateNav();
         });
       }
-      // 点击空白处关闭列表面板
-      // 点面板外部自动关闭（含点文档预览区）。
-      // 关键坑：内容区是 iframe，点击 iframe 内部时 click 事件不会冒泡到本文档，
-      // 只有 pointerdown/mousedown 会在 iframe 元素上冒泡 —— 所以必须监听按下事件，
-      // 否则"点文档区关不掉 ☰ 菜单"。click 监听保留作父文档内普通点击的兜底。
-      function __tablistOutsideClose(e) {
+      // 点击空白处关闭列表面板 / 帮助菜单（点面板与对应按钮除外）
+      function __menusOutsideClose(e) {
         try {
           var box = document.getElementById("tablist");
           var btn = document.getElementById("navList");
-          if (!box || box.style.display !== "block") return;
-          if (btn && btn.contains(e.target)) return;
-          if (!box.contains(e.target)) toggleTabList(false);
+          if (box && box.style.display === "block") {
+            if (!(btn && btn.contains(e.target)) && !box.contains(e.target)) toggleTabList(false);
+          }
+          var menu = document.getElementById("helpMenu");
+          var hb = document.getElementById("helpBtn");
+          if (menu && menu.style.display === "block") {
+            if (!(hb && hb.contains(e.target)) && !menu.contains(e.target)) toggleHelpMenu(false);
+          }
         } catch (err) {}
       }
-      document.addEventListener("pointerdown", __tablistOutsideClose, true);
-      document.addEventListener("click", __tablistOutsideClose);
+      document.addEventListener("pointerdown", __menusOutsideClose, true);
+      document.addEventListener("click", __menusOutsideClose);
       var _t = document.getElementById("tabs");
       if (_t && _t.addEventListener) {
         _t.addEventListener("wheel", function (e) {
@@ -824,6 +922,15 @@
       <button type="button" onclick="closeFeedbackModal()" style="margin-left:8px">关闭</button>
     </div>
   </div>
-</body>
+  <div id="aboutModal">
+    <div class="box">
+      <h3>关于 PureMD</h3>
+      <p>Markdown 纯预览工具：双击即看，只读打开，绝不改写源文件。</p>
+      <span class="ver" id="aboutVer">PureMD v1.0</span>
+      <p>作者邮箱：xkwwang@126.com</p>
+      <button type="button" onclick="copyAboutEmail()">复制邮箱</button>
+      <button type="button" onclick="closeAboutModal()" style="margin-left:8px">关闭</button>
+    </div>
+  </div>
 </body>
 </html>
