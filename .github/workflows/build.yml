@@ -1,0 +1,82 @@
+name: Build, Sign & Release PureMD
+
+# 触发：推送 v* 标签时自动构建+签名+发版；也支持手动 workflow_dispatch 仅做构建/签名验证
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+# 关键权限：
+#   id-token: write  → 获取 GitHub OIDC token，供 Sigstore keyless 签名（无需任何密钥/secret）
+#   contents: write  → 创建 GitHub Release 并上传资产
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller pywebview
+
+      - name: Build executable
+        run: |
+          pyinstaller --noconfirm --noconsole --onedir --name PureMD `
+            --icon mdpreview/md_preview.ico `
+            --add-data "mdpreview;mdpreview" `
+            --collect-data webview --collect-submodules webview `
+            --hidden-import webview.platforms.edgechromium `
+            open_md_preview.pyw
+
+      - name: Assemble distribution
+        # 把构建产物放进 dist_share/PureMD/PureMD，make_zip.py 会再把 release-assets/ 折叠进来
+        run: |
+          New-Item -ItemType Directory -Force -Path dist_share/PureMD | Out-Null
+          Copy-Item -Recurse -Force dist/PureMD dist_share/PureMD/PureMD
+
+      - name: Package zip
+        run: python make_zip.py
+
+      - name: Install cosign (Sigstore)
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign PureMD.zip (Sigstore keyless)
+        # 无密钥签名：Fulcio 用 GitHub OIDC 身份签发短时证书，记录进 Rekor 透明日志
+        # 同时导出证书(.pem)方便用户离线校验
+        run: |
+          cosign sign-blob --yes `
+            --output-signature dist_share/PureMD.zip.sig `
+            --output-certificate dist_share/PureMD.zip.pem `
+            dist_share/PureMD.zip
+
+      - name: Verify own signature (self-check)
+        # 用本次运行的精确身份自验，确保签名链路可用
+        run: |
+          cosign verify-blob `
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/build.yml@${{ github.ref }}" `
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" `
+            --signature dist_share/PureMD.zip.sig `
+            dist_share/PureMD.zip
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist_share/PureMD.zip
+            dist_share/PureMD.zip.sig
+            dist_share/PureMD.zip.pem
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

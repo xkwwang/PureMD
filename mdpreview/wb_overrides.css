@@ -1,0 +1,57 @@
+/* WorkBuddy 预览器同款排版 —— 提取自其内置 markdown-editor-component 的 --sc-* 设计变量 */
+.markdown-body{
+  font-size:14px;
+  line-height:1.75;
+  font-family:"Segoe UI","Microsoft YaHei",-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif;
+  color:#000000e6;
+  word-wrap:break-word;
+}
+.markdown-body h1,.markdown-body h2,.markdown-body h3,.markdown-body h4,.markdown-body h5,.markdown-body h6{
+  font-weight:600;line-height:1.75;color:#000000e6;margin:24px 0 8px;letter-spacing:normal;
+}
+.markdown-body h1{font-size:20px;padding-bottom:.3em;border-bottom:1px solid #ebebeb;}
+.markdown-body h2{font-size:18px;padding-bottom:.3em;border-bottom:1px solid #ebebeb;}
+.markdown-body h3{font-size:16px;}
+.markdown-body h4,.markdown-body h5,.markdown-body h6{font-size:14px;}
+.markdown-body p{margin:0 0 12px;}
+.markdown-body ul,.markdown-body ol{margin:0 0 12px;padding-left:2em;}
+.markdown-body li+li{margin-top:4px;}
+.markdown-body a{color:#08f;text-decoration:none;}
+.markdown-body a:hover{color:#08f;text-decoration:underline;}
+.markdown-body code,.markdown-body tt{
+  background:#ebebeb;border-radius:4px;font-size:12px;padding:.15em 4px;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,Courier,monospace;
+}
+.markdown-body pre{
+  background:#fff;border:1px solid #ebebeb;border-radius:16px;font-size:14px;
+  padding:16px;line-height:1.75;overflow:auto;
+}
+.markdown-body pre code,.markdown-body pre tt{background:transparent;border:0;padding:0;font-size:14px;}
+.markdown-body blockquote{
+  border-left:4px solid #ebebeb;color:#00000080;padding:0 16px;margin:0 0 12px;
+}
+.markdown-body hr{border:0;border-top:1px solid #efefef;margin:20px 0;height:0;}
+.markdown-body table{border-collapse:collapse;display:block;width:max-content;max-width:100%;overflow:auto;}
+.markdown-body th,.markdown-body td{border:1px solid #ebebeb;padding:6px 13px;}
+.markdown-body img{max-width:100%;}
+
+/* 暗色主题：对齐 WorkBuddy 的 --sc-* dark 取值 */
+.markdown-body.dark{color:#ffffffe6;}
+.markdown-body.dark h1,.markdown-body.dark h2,.markdown-body.dark h3,.markdown-body.dark h4,.markdown-body.dark h5,.markdown-body.dark h6{color:#ffffffe6;border-bottom-color:#ffffff26;}
+.markdown-body.dark a{color:#08f;}
+.markdown-body.dark code,.markdown-body.dark tt{background:#c8c8c826;}
+.markdown-body.dark pre{background:#1e1e1e;border:1px solid #ffffff1f;}
+.markdown-body.dark blockquote{border-left-color:#ffffff26;color:#ffffff80;}
+.markdown-body.dark hr{border-top-color:#ffffff1a;}
+.markdown-body.dark th,.markdown-body.dark td{border-color:#ffffff26;}
+
+@media (prefers-color-scheme: dark){
+  .markdown-body{color:#ffffffe6;}
+  .markdown-body h1,.markdown-body h2,.markdown-body h3,.markdown-body h4,.markdown-body h5,.markdown-body h6{color:#ffffffe6;border-bottom-color:#ffffff26;}
+  .markdown-body a{color:#08f;}
+  .markdown-body code,.markdown-body tt{background:#c8c8c826;}
+  .markdown-body pre{background:#1e1e1e;border:1px solid #ffffff1f;}
+  .markdown-body blockquote{border-left-color:#ffffff26;color:#ffffff80;}
+  .markdown-body hr{border-top-color:#ffffff1a;}
+  .markdown-body th,.markdown-body td{border-color:#ffffff26;}
+}

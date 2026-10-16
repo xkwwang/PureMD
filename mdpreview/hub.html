@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PureMD</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Microsoft YaHei", Helvetica, Arial, sans-serif;
+    background: #fff; color: #24292f;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  body.dark { background: #0d1117; color: #c9d1d9; }
+  /* 外层固定条：左右滚动按钮 + 主题按钮固定，不随标签一起滚动 */
+  #tabsbar {
+    display: flex; align-items: center; gap: 4px;
+    padding: 4px 6px; background: #f6f8fa;
+    border-bottom: 1px solid #d0d7de; flex: 0 0 auto;
+  }
+  body.dark #tabsbar { background: #161b22; border-bottom-color: #30363d; }
+  /* 内层标签区：可横向滚动 */
+  #tabs {
+    display: flex; align-items: stretch; gap: 2px;
+    flex: 1 1 auto; min-width: 0;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none; -ms-overflow-style: none;
+  }
+  #tabs::-webkit-scrollbar { height: 0; }
+  .tab {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 8px; border: 1px solid transparent;
+    border-radius: 6px 6px 0 0; cursor: pointer; font-size: 13px;
+    white-space: nowrap; user-select: none;
+    /* 一行正好容纳 6 个标签：收缩下限 = 可视宽度/6（减掉间隙），第 7 个起才出现箭头 */
+    flex: 0 1 auto; max-width: 200px; min-width: calc(100% / 6 - 3px);
+  }
+  .tab:hover { background: #eaeef2; }
+  body.dark .tab:hover { background: #30363d; }
+  .tab.active { background: #fff; border-color: #d0d7de; border-bottom-color: #fff; }
+  body.dark .tab.active { background: #0d1117; border-color: #30363d; border-bottom-color: #0d1117; }
+  .tab .nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .tab .x { opacity: .45; font-weight: 700; padding: 0 2px; flex: 0 0 auto; }
+  .tab .x:hover { opacity: 1; color: #cf222e; }
+  /* 拖拽调整标签顺序 */
+  .tab.dragging { opacity: .45; }
+  .tab:active { cursor: grabbing; }
+  /* 标签栏按钮：箭头/列表图标用 flex 双向居中 */
+  .nav {
+    display: inline-flex; align-items: center; justify-content: center;
+    flex: 0 0 auto; min-width: 26px; align-self: stretch;
+    border: 1px solid #d0d7de; background: #fff; color: #24292f;
+    border-radius: 6px; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 6px;
+  }
+  body.dark .nav { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+  /* 垂直列显示：点“☰”弹出的标签名列表 */
+  #tablist {
+    position: fixed; z-index: 50; display: none;
+    min-width: 200px; max-width: 340px; max-height: 60vh; overflow-y: auto;
+    background: #fff; border: 1px solid #d0d7de; border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .18); padding: 4px;
+  }
+  #tablist .li {
+    display: block; padding: 6px 10px; border-radius: 4px; cursor: pointer;
+    font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #tablist .li:hover { background: #eaeef2; }
+  #tablist .li.active { background: #eaeef2; font-weight: 600; }
+  body.dark #tablist { background: #161b22; border-color: #30363d; box-shadow: 0 4px 16px rgba(0,0,0,.5); }
+  body.dark #tablist .li:hover, body.dark #tablist .li.active { background: #30363d; }
+  body.beige #tablist { background: #f4ecd8; border-color: #d8cba8; }
+  body.beige #tablist .li:hover, body.beige #tablist .li.active { background: #e0d5b8; }
+  button.theme {
+    flex: 0 0 auto;
+    border: 1px solid #d0d7de; background: #fff; color: #24292f;
+    border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px;
+  }
+  body.dark button.theme { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+  #views { flex: 1 1 auto; position: relative; overflow: hidden; }
+  iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+  body.dark iframe { background: #0d1117; }
+  .empty {
+    display: flex; align-items: center; justify-content: center;
+    height: 100%; color: #6e7781; font-size: 14px;
+  }
+  body.dark .empty { color: #8b949e; }
+  /* 顶部工具栏：打开文件 / 重新加载 / 自动刷新 / 主题按钮 */
+  #topbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; background: #f6f8fa;
+    border-bottom: 1px solid #d0d7de; flex: 0 0 auto;
+  }
+  body.dark #topbar { background: #161b22; border-bottom-color: #30363d; }
+  body.beige #topbar { background: #ede3cc; border-bottom-color: #d8cba8; }
+  #topbar button.toolbtn {
+    border: 1px solid #d0d7de; background: #fff; color: #24292f;
+    border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px;
+  }
+  body.dark #topbar button.toolbtn { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+  body.beige #topbar button.toolbtn { background: #e6dcc3; color: #4a3b28; border-color: #d8cba8; }
+  #topbar label { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+  #topbar #status { margin-left: auto; color: #6e7781; font-size: 12px; }
+  body.dark #topbar #status { color: #8b949e; }
+  body.beige #topbar #status { color: #6b5c46; }
+  /* 米色（经典纸感 Sepia）：底 #f4ecd8 + 暖棕字 #4a3b28，对比度 9.16:1，落在 7–12:1 阅读舒适区 */
+  body.beige { background: #f4ecd8; color: #4a3b28; }
+  body.beige #tabsbar { background: #ede3cc; border-bottom-color: #d8cba8; }
+  body.beige .tab:hover { background: #e0d5b8; }
+  body.beige .tab.active { background: #f4ecd8; border-color: #d8cba8; border-bottom-color: #f4ecd8; }
+  body.beige .nav { background: #e6dcc3; color: #4a3b28; border-color: #d8cba8; }
+  body.beige button.theme { background: #e6dcc3; color: #4a3b28; border-color: #d8cba8; }
+  body.beige iframe { background: #f4ecd8; }
+  body.beige .empty { color: #6b5c46; }
+  /* 系统深色模式：让顶层标签栏/按钮也跟随系统一起变暗（之前只有正文跟系统走） */
+  @media (prefers-color-scheme: dark) {
+    body:not(.light):not(.beige) { background: #0d1117; color: #c9d1d9; }
+    body:not(.light):not(.beige) #tabsbar { background: #161b22; border-bottom-color: #30363d; }
+    body:not(.light):not(.beige) #topbar { background: #161b22; border-bottom-color: #30363d; }
+    body:not(.light):not(.beige) .tab:hover { background: #30363d; }
+    body:not(.light):not(.beige) .tab.active { background: #0d1117; border-color: #30363d; border-bottom-color: #0d1117; }
+    body:not(.light):not(.beige) .nav { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+    body:not(.light):not(.beige) button.theme { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+    body:not(.light):not(.beige) #topbar button.toolbtn { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+    body:not(.light):not(.beige) #tablist { background: #161b22; border-color: #30363d; }
+    body:not(.light):not(.beige) #tablist .li:hover,
+    body:not(.light):not(.beige) #tablist .li.active { background: #30363d; }
+    body:not(.light):not(.beige) iframe { background: #0d1117; }
+    body:not(.light):not(.beige) .empty { color: #8b949e; }
+  }
+  /* 反馈弹窗：点“反馈”后直接把邮箱弹出来，并支持一键复制 */
+  #fbModal {
+    position: fixed; inset: 0; z-index: 200; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, .35);
+  }
+  #fbModal .box {
+    background: #fff; color: #24292f; border-radius: 10px;
+    padding: 20px 22px; width: 320px; max-width: 90vw;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, .3); text-align: center;
+  }
+  body.dark #fbModal .box { background: #161b22; color: #c9d1d9; }
+  body.beige #fbModal .box { background: #f4ecd8; color: #4a3b28; }
+  #fbModal .box h3 { margin: 0 0 6px; font-size: 15px; }
+  #fbModal .box p { margin: 0 0 14px; font-size: 12px; color: #6e7781; line-height: 1.5; }
+  body.dark #fbModal .box p { color: #8b949e; }
+  body.beige #fbModal .box p { color: #6b5c46; }
+  #fbModal .email {
+    display: block; font-size: 16px; font-weight: 700; letter-spacing: .3px;
+    background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px;
+    padding: 10px; margin: 0 0 14px; user-select: all; word-break: break-all;
+  }
+  body.dark #fbModal .email { background: #21262d; border-color: #30363d; }
+  body.beige #fbModal .email { background: #e6dcc3; border-color: #d8cba8; }
+  #fbModal .box button {
+    border: 1px solid #d0d7de; background: #fff; color: #24292f;
+    border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 13px;
+  }
+  body.dark #fbModal .box button { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+  body.beige #fbModal .box button { background: #e6dcc3; color: #4a3b28; border-color: #d8cba8; }
+</style>
+</head>
+<body>
+  <div id="topbar">
+    <button class="toolbtn" id="openBtn">打开文件</button>
+    <button class="toolbtn" id="reloadBtn">重新加载</button>
+    <label><input type="checkbox" id="watchChk"> 自动刷新</label>
+    <button class="theme" id="themeBtn" onclick="toggleTheme()">主题：亮色</button>
+    <button class="toolbtn" id="exportBtn" title="把当前文档导出为 PDF（打印对话框里选“另存为 PDF”）">导出</button>
+    <button class="toolbtn" id="feedbackBtn" title="遇到问题？点此给作者发邮件反馈">反馈</button>
+    <span id="status"></span>
+  </div>
+  <div id="tabsbar">
+    <button class="nav" id="navList" title="垂直列出所有标签">&#9776;</button>
+    <button class="nav" id="navPrev" title="标签向左滚动">&#8249;</button>
+    <div id="tabs"></div>
+    <button class="nav" id="navNext" title="标签向右滚动">&#8250;</button>
+  </div>
+  <div id="tablist"></div>
+  <div id="views"><div class="empty">没有打开的文档 &mdash; 双击任意 .md 即可在此打开</div></div>
+
+  <script>
+    window.__pending = window.__pending || [];
+    var tabs = [];      // {id, name, el, iframe}
+    var activeId = null;
+    var counter = 0;
+    var theme = "light";       // "light" | "dark" | "beige"
+    var tabDragId = null;      // 正在被拖拽的标签 id
+    var userToggled = false;    // 用户是否手动切换过主题（决定系统深色是否还能覆盖）
+    var cfgTheme = "light";     // 用户上次保存的主题（来自本地配置）
+    var FEEDBACK_EMAIL = "xkwwang@126.com";  // 反馈邮箱
+
+    // 暗色主题所需的 CSS 变量（不依赖系统 prefers-color-scheme，手动切换即可生效）。
+    // 模板里这些变量的暗色取值原本只写在 @media(prefers-color-scheme:dark) 中，
+    // 手动点“主题”按钮不会改系统偏好，故这里单独注入一份，确保内容（含文字/表格/代码）真正变暗。
+    var DARK_VARS = [
+      "--fgColor-accent:#4493f8",
+      "--bgColor-attention-muted:#bb800926",
+      "--bgColor-default:#0d1117",
+      "--bgColor-muted:#151b23",
+      "--bgColor-neutral-muted:#656c7633",
+      "--borderColor-accent-emphasis:#1f6feb",
+      "--borderColor-attention-emphasis:#9e6a03",
+      "--borderColor-danger-emphasis:#da3633",
+      "--borderColor-default:#3d444d",
+      "--borderColor-done-emphasis:#8957e5",
+      "--borderColor-success-emphasis:#238636",
+      "--color-prettylights-syntax-brackethighlighter-angle:#9198a1",
+      "--color-prettylights-syntax-brackethighlighter-unmatched:#f85149",
+      "--color-prettylights-syntax-carriage-return-bg:#b62324",
+      "--color-prettylights-syntax-carriage-return-text:#f0f6fc",
+      "--color-prettylights-syntax-comment:#9198a1",
+      "--color-prettylights-syntax-constant:#79c0ff",
+      "--color-prettylights-syntax-constant-other-reference-link:#a5d6ff",
+      "--color-prettylights-syntax-entity:#d2a8ff",
+      "--color-prettylights-syntax-entity-tag:#7ee787",
+      "--color-prettylights-syntax-keyword:#ff7b72",
+      "--color-prettylights-syntax-markup-bold:#f0f6fc",
+      "--color-prettylights-syntax-markup-changed-bg:#5a1e02",
+      "--color-prettylights-syntax-markup-changed-text:#ffdfb6",
+      "--color-prettylights-syntax-markup-deleted-bg:#67060c",
+      "--color-prettylights-syntax-markup-deleted-text:#ffdcd7",
+      "--color-prettylights-syntax-markup-heading:#1f6feb",
+      "--color-prettylights-syntax-markup-ignored-bg:#1158c7",
+      "--color-prettylights-syntax-markup-ignored-text:#f0f6fc",
+      "--color-prettylights-syntax-markup-inserted-bg:#033a16",
+      "--color-prettylights-syntax-markup-inserted-text:#aff5b4",
+      "--color-prettylights-syntax-markup-italic:#f0f6fc",
+      "--color-prettylights-syntax-markup-list:#f2cc60",
+      "--color-prettylights-syntax-meta-diff-range:#d2a8ff",
+      "--color-prettylights-syntax-storage-modifier-import:#f0f6fc",
+      "--color-prettylights-syntax-string:#a5d6ff",
+      "--color-prettylights-syntax-string-regexp:#7ee787",
+      "--color-prettylights-syntax-sublimelinter-gutter-mark:#3d444d",
+      "--color-prettylights-syntax-variable:#ffa657",
+      "--fgColor-attention:#d29922",
+      "--fgColor-danger:#f85149",
+      "--fgColor-default:#f0f6fc",
+      "--fgColor-done:#ab7df8",
+      "--fgColor-muted:#9198a1",
+      "--fgColor-success:#3fb950",
+      "--borderColor-muted:#3d444db3",
+      "--color-prettylights-syntax-invalid-illegal-bg:var(--bgColor-danger-muted)",
+      "--color-prettylights-syntax-invalid-illegal-text:var(--fgColor-danger)",
+      "--focus-outlineColor:var(--borderColor-accent-emphasis)",
+      "--borderColor-neutral-muted:var(--borderColor-muted)"
+    ];
+    var DARK_VARS_CSS = ".markdown-body.dark{color-scheme:dark;" + DARK_VARS.join(";") + ";}html.dark{color-scheme:dark;}";
+
+    // 锁定字号，让三种主题完全一致。
+    // 背景：模板里暗色用的是 .markdown-body.dark h1{font-size:2em}，特异度(0,2,1)高于
+    // 排版覆盖层的 .markdown-body h1{font-size:20px}(0,1,1)，于是暗色标题会退回 2em
+    // → 14px×2 = 28px，比亮色/米色的 20px 明显偏大。这里用 !important 一并锁死。
+    // 数值取自 wb_overrides.css（WorkBuddy 同款排版）：正文14 / H1 20 / H2 18 / H3 16 / H4-H6 14
+    var FONT_PIN_CSS = [
+      ".markdown-body{font-size:14px !important;}",
+      ".markdown-body h1{font-size:20px !important;}",
+      ".markdown-body h2{font-size:18px !important;}",
+      ".markdown-body h3{font-size:16px !important;}",
+      ".markdown-body h4,.markdown-body h5,.markdown-body h6{font-size:14px !important;}"
+    ].join("");
+    function ensureFontPin(iframe) {
+      try {
+        var d = iframe.contentDocument;
+        if (!d || !d.head) return;
+        // 已存在则就地更新内容，保证改样式后旧标签也能立刻跟上
+        var s = d.getElementById("md-font-pin");
+        if (!s) {
+          s = d.createElement("style");
+          s.id = "md-font-pin";
+          d.head.appendChild(s);
+        }
+        s.textContent = FONT_PIN_CSS;
+      } catch (e) {}
+    }
+
+    function ensureDarkVars(iframe) {
+      try {
+        var d = iframe.contentDocument;
+        if (!d || !d.head) return;
+        if (d.getElementById("md-dark-vars")) return;
+        var s = d.createElement("style");
+        s.id = "md-dark-vars";
+        s.textContent = DARK_VARS_CSS;
+        d.head.appendChild(s);
+      } catch (e) {}
+    }
+
+    // 米色主题：柔和米色底 + 暖深灰字，长时间阅读比纯白更柔和（替代原护眼绿）
+    var BEIGE_VARS = [
+      "--bgColor-default:#f4ecd8",
+      "--fgColor-default:#4a3b28",
+      "--fgColor-muted:#6b5c46",
+      "--borderColor-default:#d8cba8",
+      "--bgColor-muted:#efe7d2",
+      "--borderColor-muted:#d8cba8b3",
+      "--fgColor-accent:#8a5a2b",
+      "--fgColor-success:#4a7a2c",
+      "--fgColor-danger:#a63d2f",
+      "--fgColor-attention:#8a6d00",
+      "--fgColor-done:#6b4fa0",
+      "--borderColor-accent-emphasis:#8a5a2b",
+      "--borderColor-danger-emphasis:#a63d2f",
+      "--borderColor-success-emphasis:#4a7a2c",
+      "--borderColor-attention-emphasis:#8a6d00",
+      "--borderColor-done-emphasis:#6b4fa0"
+    ];
+    var BEIGE_VARS_CSS =
+      "html.beige,body.beige{background-color:#f4ecd8;color:#4a3b28;}" +
+      ".markdown-body.beige{color-scheme:light;" + BEIGE_VARS.join(";") + ";}" +
+      ".markdown-body.beige{background-color:#f4ecd8;color:#4a3b28;}" +
+      ".markdown-body.beige h1,.markdown-body.beige h2,.markdown-body.beige h3,.markdown-body.beige h4,.markdown-body.beige h5,.markdown-body.beige h6{color:#3d3020;border-bottom-color:#d8cba8;}" +
+      ".markdown-body.beige a{color:#8a5a2b;}" +
+      ".markdown-body.beige blockquote{border-left-color:#d8cba8;color:#6b5c46;}" +
+      ".markdown-body.beige hr{border-top-color:#d8cba8;}" +
+      ".markdown-body.beige table th,.markdown-body.beige table td{border-color:#d8cba8;}" +
+      ".markdown-body.beige pre{background:#efe7d2 !important;border-color:#d8cba8 !important;}" +
+      ".markdown-body.beige code,.markdown-body.beige tt{background:#e6dcc3 !important;color:#3d3020;}" +
+      // 内容页残留的模板元素（隐藏前的工具栏/提示区）一并染米色
+      "body.beige #toolbar{background:#efe7d2;border-bottom-color:#d8cba8;}" +
+      "body.beige #toolbar button{background:#e6dcc3;color:#4a3b28;border-color:#d8cba8;}" +
+      "body.beige #status{color:#6b5c46;}" +
+      "body.beige #hint{color:#6b5c46;}" +
+      "body.beige #hint code{background:#e6dcc3;}";
+
+    function ensureBeigeVars(iframe) {
+      try {
+        var d = iframe.contentDocument;
+        if (!d || !d.head) return;
+        if (d.getElementById("md-beige-vars")) return;
+        var s = d.createElement("style");
+        s.id = "md-beige-vars";
+        s.textContent = BEIGE_VARS_CSS;
+        d.head.appendChild(s);
+      } catch (e) {}
+    }
+
+    function addTab(p) {
+      p = (typeof p === "string") ? JSON.parse(p) : p;
+      // 同名文档：直接激活已有标签，避免重复
+      var hit = null;
+      for (var i = 0; i < tabs.length; i++) { if (tabs[i].name === p.name) { hit = tabs[i]; break; } }
+      if (hit) { activate(hit.id); return; }
+
+      var empty = document.querySelector("#views .empty");
+      if (empty) empty.remove();
+
+      var id = "t" + (counter++);
+      var el = document.createElement("div");
+      el.className = "tab";
+      el.draggable = true;      // 允许拖拽调整顺序
+      el.dataset.tid = id;      // 供拖放后同步 tabs 数组顺序
+      el.title = "点击切换，拖拽可调整顺序";
+      var nm = document.createElement("span");
+      nm.className = "nm"; nm.textContent = p.name; nm.title = p.name;
+      var x = document.createElement("span");
+      x.className = "x"; x.textContent = "×";
+      el.appendChild(nm); el.appendChild(x);
+
+      el.addEventListener("click", function (e) {
+        if (e.target === x) return;
+        activate(id);
+      });
+      // 拖拽排序：只移动标签条上的小标签，绝不搬动 iframe（搬 iframe 会触发重载、丢失滚动位置）
+      el.addEventListener("dragstart", function (e) {
+        tabDragId = id;
+        el.classList.add("dragging");
+        try {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", id);
+        } catch (err) {}
+      });
+      el.addEventListener("dragend", function () {
+        tabDragId = null;
+        el.classList.remove("dragging");
+        syncTabOrderFromDom();
+        updateNav();
+      });
+      x.addEventListener("click", function (e) {
+        e.stopPropagation(); closeTab(id);
+      });
+
+      // 标签直接追加进可滚动区（不再依赖已移除的 .spacer 占位）
+      document.getElementById("tabs").appendChild(el);
+
+      var iframe = document.createElement("iframe");
+      iframe.srcdoc = p.html;
+      try { iframe.addEventListener("load", function(){ applyTheme(iframe); }); } catch(e){}
+      document.getElementById("views").appendChild(iframe);
+
+      var t = { id: id, name: p.name, path: p.path || "", el: el, iframe: iframe };
+      tabs.push(t);
+      activate(id);
+      updateNav();
+    }
+
+    function activate(id) {
+      activeId = id;
+      for (var i = 0; i < tabs.length; i++) {
+        var on = tabs[i].id === id;
+        tabs[i].el.classList.toggle("active", on);
+        tabs[i].iframe.style.display = on ? "block" : "none";
+        // 切换时把当前标签滚进可视范围
+        if (on && tabs[i].el && tabs[i].el.scrollIntoView) {
+          try { tabs[i].el.scrollIntoView({ block: "nearest", inline: "nearest" }); } catch (e) {}
+        }
+      }
+      refreshTabListIfOpen();
+    }
+
+    // 标签栏左右滚动
+    function scrollTabs(dir) {
+      try {
+        var t = document.getElementById("tabs");
+        if (!t) return;
+        var step = Math.max(120, Math.round(t.clientWidth * 0.6));
+        if (t.scrollBy) t.scrollBy({ left: dir * step, behavior: "smooth" });
+        else t.scrollLeft += dir * step;
+      } catch (e) {}
+    }
+
+    // ---- 拖拽调整标签顺序 ----
+    // 根据指针 x 坐标判断应插入到哪个标签之前
+    function dragAfterElement(container, x) {
+      var els = container.querySelectorAll(".tab:not(.dragging)");
+      for (var i = 0; i < els.length; i++) {
+        var b = els[i].getBoundingClientRect();
+        if (x < b.left + b.width / 2) return els[i];
+      }
+      return null;
+    }
+    // 拖放后，让 tabs 数组顺序与标签条上的 DOM 顺序一致
+    function syncTabOrderFromDom() {
+      try {
+        var els = document.getElementById("tabs").querySelectorAll(".tab");
+        var order = [];
+        for (var i = 0; i < els.length; i++) order.push(els[i].dataset.tid);
+        tabs.sort(function (a, b) { return order.indexOf(a.id) - order.indexOf(b.id); });
+        refreshTabListIfOpen();
+      } catch (e) {}
+    }
+
+    // 标签没溢出时隐藏左右滚动按钮，溢出时才显示
+    function updateNav() {
+      try {
+        var t = document.getElementById("tabs");
+        var pv = document.getElementById("navPrev");
+        var nx = document.getElementById("navNext");
+        if (!t || !pv || !nx) return;
+        var over = t.scrollWidth > t.clientWidth + 2;
+        pv.style.display = over ? "inline-flex" : "none";
+        nx.style.display = over ? "inline-flex" : "none";
+      } catch (e) {}
+      refreshTabListIfOpen();
+    }
+
+    // ---- 垂直列显示：把所有标签名竖排列出，点一条即切换 ----
+    function renderTabList() {
+      try {
+        var box = document.getElementById("tablist");
+        if (!box) return;
+        box.innerHTML = "";
+        if (tabs.length === 0) {
+          var e = document.createElement("div");
+          e.className = "li"; e.style.cursor = "default";
+          e.textContent = "(没有打开的文档)";
+          box.appendChild(e);
+          return;
+        }
+        for (var i = 0; i < tabs.length; i++) {
+          (function (t) {
+            var d = document.createElement("div");
+            d.className = "li" + (t.id === activeId ? " active" : "");
+            d.textContent = t.name;
+            d.title = t.name;
+            d.addEventListener("click", function () { activate(t.id); toggleTabList(false); });
+            box.appendChild(d);
+          })(tabs[i]);
+        }
+      } catch (err) {}
+    }
+
+    function refreshTabListIfOpen() {
+      try {
+        var box = document.getElementById("tablist");
+        if (box && box.style.display === "block") renderTabList();
+      } catch (err) {}
+    }
+
+    function toggleTabList(force) {
+      try {
+        var box = document.getElementById("tablist");
+        var btn = document.getElementById("navList");
+        if (!box || !btn) return;
+        var show = (typeof force === "boolean") ? force : (box.style.display !== "block");
+        if (show) {
+          renderTabList();
+          var r = btn.getBoundingClientRect();   // 让面板出现在按钮正下方
+          box.style.left = Math.max(4, r.left) + "px";
+          box.style.top = (r.bottom + 4) + "px";
+          box.style.display = "block";
+        } else {
+          box.style.display = "none";
+        }
+      } catch (err) {}
+    }
+
+    function closeTab(id) {
+      var idx = -1;
+      for (var i = 0; i < tabs.length; i++) { if (tabs[i].id === id) { idx = i; break; } }
+      if (idx < 0) return;
+      tabs[idx].el.remove();
+      tabs[idx].iframe.remove();
+      tabs.splice(idx, 1);
+      if (tabs.length === 0) {
+        activeId = null;
+        document.getElementById("views").innerHTML =
+          '<div class="empty">没有打开的文档 &mdash; 双击任意 .md 即可在此打开</div>';
+        updateNav();
+        return;
+      }
+      activate(tabs[Math.max(0, idx - 1)].id);
+      updateNav();
+    }
+
+    function applyTheme(iframe) {
+      try {
+        var d = iframe.contentDocument;
+        if (!d) return;
+        var on = (theme !== "light");
+        [d.body, d.documentElement].forEach(function (el) {
+          if (!el) return;
+          el.classList.remove("dark", "beige");
+          if (on) el.classList.add(theme);
+        });
+        var nodes = d.querySelectorAll(".markdown-body");
+        for (var i = 0; i < nodes.length; i++) {
+          nodes[i].classList.remove("dark", "beige");
+          if (on) nodes[i].classList.add(theme);
+        }
+        var c = d.getElementById("content");
+        if (c) { c.classList.remove("dark", "beige"); if (on) c.classList.add(theme); }
+        ensureFontPin(iframe);
+        if (theme === "dark") ensureDarkVars(iframe);
+        else if (theme === "beige") ensureBeigeVars(iframe);
+      } catch (e) {}
+    }
+
+    function updateThemeBtn() {
+      try {
+        var b = document.getElementById("themeBtn");
+        if (!b) return;
+        var label = (theme === "dark") ? "主题：暗色" : (theme === "beige") ? "主题：米色" : "主题：亮色";
+        b.textContent = label;
+      } catch (e) {}
+    }
+
+    // 统一套用当前主题：顶层界面（标签栏/按钮/窗口底） + 每个内容标签页
+    function applyAll() {
+      document.body.classList.remove("dark", "beige", "light");
+      if (theme !== "light") document.body.classList.add(theme);
+      else document.body.classList.add("light");
+      for (var i = 0; i < tabs.length; i++) applyTheme(tabs[i].iframe);
+      updateThemeBtn();
+    }
+
+    // 点击循环：亮色 → 暗色 → 米色 → 亮色
+    function toggleTheme() {
+      userToggled = true;            // 用户手动操作后不再被系统主题覆盖
+      theme = (theme === "light") ? "dark" : (theme === "dark") ? "beige" : "light";
+      applyAll();
+      saveCfg({ theme: theme });     // 记住用户选择，下次打开仍是这个主题
+    }
+
+    // 初始：跟随系统深色偏好；之后系统切换时若用户没手动改过，自动跟随
+    (function initTheme() {
+      try {
+        if (window.matchMedia) {
+          var mq = window.matchMedia("(prefers-color-scheme: dark)");
+          if (mq.matches) theme = "dark";
+          var onSys = function (e) { if (!userToggled) { theme = e.matches ? "dark" : "light"; applyAll(); } };
+          if (mq.addEventListener) mq.addEventListener("change", onSys);
+          else if (mq.addListener) mq.addListener(onSys);
+        }
+      } catch (e) {}
+      applyAll();
+      // 尝试从本地配置恢复用户上次的主题 / 自动刷新偏好
+      try {
+        if (hasApi() && window.pywebview.api.get_config) {
+          window.pywebview.api.get_config().then(function (cfg) {
+            if (cfg && cfg.theme && (cfg.theme === "dark" || cfg.theme === "beige" || cfg.theme === "light")) {
+              theme = cfg.theme; userToggled = true; applyAll();
+            }
+            if (cfg && typeof cfg.autoWatch === "boolean") {
+              var wc = document.getElementById("watchChk");
+              if (wc) wc.checked = cfg.autoWatch;
+            }
+          }).catch(function () {});
+          // 若已发布到 GitHub，检查新版本（未配置 UPDATE_CHECK_URL 时返回 null，无副作用）
+          window.pywebview.api.check_update().then(function (up) {
+            if (up && up.latest) {
+              setStatus("发现新版本 v" + up.latest + (up.url ? "，下载：" + up.url : ""));
+            }
+          }).catch(function () {});
+        }
+      } catch (e) {}
+    })();
+
+    // ---- 顶部工具栏：打开文件 / 重新加载 / 自动刷新（功能需要 Python 侧 js_api 支持）----
+    function setStatus(msg) {
+      try { var s = document.getElementById("status"); if (s) s.textContent = msg || ""; } catch (e) {}
+    }
+
+    // 反馈弹窗：直接把邮箱弹出来，并支持一键复制
+    function showFeedbackModal(email) {
+      try {
+        var m = document.getElementById("fbModal");
+        var e = document.getElementById("fbEmail");
+        if (e && email) e.textContent = email;
+        if (m) m.style.display = "flex";
+      } catch (err) {}
+    }
+    function closeFeedbackModal() {
+      try { var m = document.getElementById("fbModal"); if (m) m.style.display = "none"; } catch (err) {}
+    }
+    function copyFeedbackEmail() {
+      try {
+        var e = document.getElementById("fbEmail");
+        var txt = e ? e.textContent : "xkwwang@126.com";
+        var done = function () { setStatus("邮箱已复制：" + txt); };
+        var fail = function () { setStatus("复制失败，请手动选择邮箱：" + txt); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(txt).then(done, fail);
+        } else {
+          fail();
+        }
+      } catch (err) { setStatus("复制失败：" + err); }
+    }
+    // 点击弹窗外区域关闭
+    document.addEventListener("click", function (e) {
+      try {
+        var m = document.getElementById("fbModal");
+        if (!m || m.style.display !== "flex") return;
+        if (e.target === m) m.style.display = "none";
+      } catch (err) {}
+    });
+
+    // 导出当前文档为 PDF：调用 iframe 的打印（在打印对话框里选“另存为 PDF”）
+    function exportPdf() {
+      var t = activeTab();
+      if (!t || !t.iframe) { setStatus("当前没有可导出的文档"); return; }
+      try {
+        t.iframe.contentWindow.focus();
+        t.iframe.contentWindow.print();
+        setStatus("已打开打印对话框，选择“另存为 PDF”即可导出");
+      } catch (e) {
+        setStatus("导出失败：" + (e && e.message ? e.message : e));
+      }
+    }
+
+    // 本地配置（主题 / 自动刷新等）持久化：读 / 写都走 Python 侧，失败时静默
+    function saveCfg(obj) {
+      try {
+        if (hasApi() && window.pywebview.api.set_config) {
+          window.pywebview.api.set_config(obj).catch(function () {});
+        }
+      } catch (e) {}
+    }
+    function hasApi() { return !!(window.pywebview && window.pywebview.api); }
+    function activeTab() {
+      for (var i = 0; i < tabs.length; i++) { if (tabs[i].id === activeId) return tabs[i]; }
+      return null;
+    }
+    // Python 侧（自动刷新/重新加载）推送新内容时调用：按文件名找到标签并换掉内容
+    window.__updateTab = function (p) {
+      try {
+        p = (typeof p === "string") ? JSON.parse(p) : p;
+        if (!p || !p.name) return;
+        var hit = null;
+        for (var i = 0; i < tabs.length; i++) { if (tabs[i].name === p.name) { hit = tabs[i]; break; } }
+        if (!hit) return;
+        var fr = hit.iframe;
+        fr.onload = function () { applyTheme(fr); };
+        fr.srcdoc = p.html;
+      } catch (e) {}
+    };
+    function wireToolbar() {
+      try {
+        var ob = document.getElementById("openBtn");
+        var rb = document.getElementById("reloadBtn");
+        var wc = document.getElementById("watchChk");
+        if (ob) ob.addEventListener("click", function () {
+          if (!hasApi()) { setStatus("此功能需要更新后的 exe"); return; }
+          window.pywebview.api.open_files().then(function (items) {
+            if (items && items.length) {
+              items.forEach(function (p) { if (p && p.name) addTab(p); });
+              setStatus("已打开 " + items.length + " 个文件");
+            } else if (items === null) {
+              setStatus("已取消");
+            } else {
+              setStatus("打开文件失败：未返回任何文件");
+            }
+          }).catch(function (e) {
+            setStatus("打开文件失败：" + (e && e.message ? e.message : e));
+          });
+        });
+        if (rb) rb.addEventListener("click", function () {
+          var t = activeTab();
+          if (!hasApi()) { setStatus("此功能需要更新后的 exe"); return; }
+          if (!t || !t.path) { setStatus("当前标签没有源文件路径"); return; }
+          window.pywebview.api.reload(t.path).then(function (p) {
+            if (p && p.name) { window.__updateTab(p); setStatus("已重新加载"); }
+            else if (p && p.error) setStatus(p.error);
+          }).catch(function (e) {
+            setStatus("重新加载失败：" + (e && e.message ? e.message : e));
+          });
+        });
+        if (wc) wc.addEventListener("change", function () {
+          var t = activeTab();
+          if (!hasApi()) { wc.checked = false; setStatus("此功能需要更新后的 exe"); return; }
+          if (!t || !t.path) { wc.checked = false; setStatus("当前标签没有源文件路径"); return; }
+          window.pywebview.api.set_watch(t.path, wc.checked).then(function (ok) {
+            if (ok === false) { wc.checked = false; setStatus("自动刷新设置失败"); }
+            else { setStatus(wc.checked ? "自动刷新：开" : "自动刷新：关"); saveCfg({ autoWatch: wc.checked }); }
+          }).catch(function (e) {
+            wc.checked = false;
+            setStatus("自动刷新失败：" + (e && e.message ? e.message : e));
+          });
+        });
+        var fb = document.getElementById("feedbackBtn");
+        if (fb) fb.addEventListener("click", function () {
+          // 只弹出邮箱信息，不自动拉起邮件客户端
+          showFeedbackModal(FEEDBACK_EMAIL);
+        });
+        var exb = document.getElementById("exportBtn");
+        if (exb) exb.addEventListener("click", function () { exportPdf(); });
+      } catch (e) {}
+    }
+    wireToolbar();
+
+    // 绑定左右滚动按钮；鼠标滚轮上下滚也转成标签区横向滚动
+    try {
+      var _p = document.getElementById("navPrev");
+      var _n = document.getElementById("navNext");
+      var _l = document.getElementById("navList");
+      if (_p) _p.addEventListener("click", function () { scrollTabs(-1); });
+      if (_n) _n.addEventListener("click", function () { scrollTabs(1); });
+      if (_l) _l.addEventListener("click", function (e) { e.stopPropagation(); toggleTabList(); });
+      // 标签条接收拖放：实时把被拖的标签插入到指针所在位置
+      var _tc = document.getElementById("tabs");
+      if (_tc) {
+        _tc.addEventListener("dragover", function (e) {
+          if (!tabDragId) return;
+          e.preventDefault();
+          try { e.dataTransfer.dropEffect = "move"; } catch (err) {}
+          var dragged = _tc.querySelector(".tab.dragging");
+          if (!dragged) return;
+          var after = dragAfterElement(_tc, e.clientX);
+          if (after) {
+            if (dragged.nextSibling !== after) _tc.insertBefore(dragged, after);
+          } else if (_tc.lastChild !== dragged) {
+            _tc.appendChild(dragged);
+          }
+        });
+        _tc.addEventListener("drop", function (e) {
+          if (!tabDragId) return;
+          e.preventDefault();
+          syncTabOrderFromDom();
+          updateNav();
+        });
+      }
+      // 点击空白处关闭列表面板
+      document.addEventListener("click", function (e) {
+        try {
+          var box = document.getElementById("tablist");
+          var btn = document.getElementById("navList");
+          if (!box || box.style.display !== "block") return;
+          if (btn && btn.contains(e.target)) return;
+          if (!box.contains(e.target)) toggleTabList(false);
+        } catch (err) {}
+      });
+      var _t = document.getElementById("tabs");
+      if (_t && _t.addEventListener) {
+        _t.addEventListener("wheel", function (e) {
+          if (e.deltaY) { _t.scrollLeft += e.deltaY; e.preventDefault(); }
+        }, { passive: false });
+      }
+      window.addEventListener("resize", updateNav);
+    } catch (e) {}
+
+    window.__addTab = function (p) { addTab(p); };
+    // 消费在 DOM/脚本就绪前到达的待处理项
+    window.__pending.forEach(function (p) { addTab(p); });
+    window.__pending.length = 0;
+  </script>
+  <div id="fbModal">
+    <div class="box">
+      <h3>反馈问题</h3>
+      <p>有问题或建议？请复制下面的邮箱发邮件给我：</p>
+      <span class="email" id="fbEmail">xkwwang@126.com</span>
+      <button type="button" onclick="copyFeedbackEmail()">复制邮箱</button>
+      <button type="button" onclick="closeFeedbackModal()" style="margin-left:8px">关闭</button>
+    </div>
+  </div>
+</body>
+</body>
+</html>
