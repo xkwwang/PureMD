@@ -63,8 +63,12 @@ jobs:
 
       - name: Verify own signature (self-check)
         # 用本次运行的精确身份自验，确保签名链路可用
+        # 注意：--certificate-identity/--certificate-oidc-issuer 只是匹配条件，
+        # 必须同时用 --certificate 提供签名时导出的证书文件，否则 cosign 报
+        # "provide a key with --key ... or a bundle with --bundle"
         run: |
           cosign verify-blob `
+            --certificate dist_share/PureMD.zip.pem `
             --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/build.yml@${{ github.ref }}" `
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" `
             --signature dist_share/PureMD.zip.sig `

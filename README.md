@@ -25,6 +25,26 @@
 需要 **Microsoft Edge WebView2 Runtime**。Win11 与较新的 Win10 已自带；若打开时提示「WebView2 启动失败」，请安装
 [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)（免费）。
 
+## 验证 Release 真伪（Sigstore 防伪）
+
+每个 Release 附带三个文件：`PureMD.zip`（本体）、`PureMD.zip.sig`（签名）、`PureMD.zip.pem`（证书）。
+下载后三者放同一目录，安装 [cosign](https://github.com/sigstore/cosign/releases) 后执行
+（把 `v1.0.0` 换成你要验证的版本号）：
+
+```bash
+# Windows PowerShell / CMD 可去掉续行符 \ 写成一行
+cosign verify-blob \
+  --certificate PureMD.zip.pem \
+  --certificate-identity "https://github.com/xkwwang/PureMD/.github/workflows/build.yml@refs/tags/v1.0.0" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  --signature PureMD.zip.sig \
+  PureMD.zip
+```
+
+输出 `Verified OK` 即证明：该 zip 确实由本仓库的 GitHub Actions 构建产出，且发布后未被篡改。
+（注意：`--certificate` 必须提供；只用 `--certificate-identity` 而不给证书文件，cosign 会报
+"provide a key with --key or --sk, a certificate to verify against with --certificate ..." 错误。）
+
 ## 从源码构建
 
 ```bash
