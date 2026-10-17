@@ -773,17 +773,19 @@
         }
       } catch (e) {}
     }
-    // 恢复显示后布局要 1~2 帧才稳定，重试几次确保真的落位
+    // 恢复显示后布局要 1~2 帧才稳定，重试几次确保真的落位。
+    // __restoreTo 有三重作用：① 记录恢复目标；② 期间 saveSession 不得用实时读数
+    // 覆盖已记位置；③ 恢复自身引起的 scroll 事件可被识别并忽略。
     function restoreScroll(fr, y) {
       if (!fr || !y) return;
       var tries = 0;
+      fr.__restoreTo = y;
       function step() {
-        if (!fr.parentNode) return;               // 标签已被关闭
-        if (fr.style.display === "none") return;  // 期间又切走了，放弃恢复
+        if (!fr.parentNode || fr.__restoreTo !== y) return;  // 标签已关 / 用户已接管
+        if (fr.style.display === "none") { fr.__restoreTo = 0; return; }
         ifScrollTo(fr, y);
-        // 冷启动恢复时文档往往还没完成布局（图片/字体加载会改变文档高度），
-        // 只滚一次常常会落空，多试几轮才能真的停在原位。
-        if (++tries < 6) setTimeout(step, 80);
+        if (Math.abs(ifScrollY(fr) - y) <= 2 || ++tries >= 6) { fr.__restoreTo = 0; return; }
+        setTimeout(step, 80);
       }
       step();
     }
@@ -811,7 +813,15 @@
         if (!w || t.__scrollWatched) return;
         t.__scrollWatched = true;
         w.addEventListener("scroll", function () {
-          t.scrollY = ifScrollY(t.iframe);
+          // 关键：iframe 被 display:none 隐藏时，Chromium 会把它的滚动归零并
+          // 派发一次 scroll 事件。绝不能拿这个 0 覆盖已记住的位置——否则每次
+          // 切走标签，位置就被清零了。
+          if (t.iframe.style.display === "none") return;
+          var cur = ifScrollY(t.iframe);
+          // 恢复滚动动作自身引起的滚动（位置≈目标值）不是用户滚动，忽略
+          if (t.iframe.__restoreTo && Math.abs(cur - t.iframe.__restoreTo) <= 2) return;
+          t.iframe.__restoreTo = 0;      // 用户真的自己滚了 → 立即取消恢复
+          t.scrollY = cur;
           scheduleSave();
         }, { passive: true });
       } catch (e) {}
@@ -819,8 +829,9 @@
 
     function activate(id) {
       // 切走前：先记下当前活动标签的阅读位置
+      // （恢复还在进行中的标签不动它——此刻实时读数可能还是 0）
       for (var k = 0; k < tabs.length; k++) {
-        if (tabs[k].id === activeId && tabs[k].iframe) {
+        if (tabs[k].id === activeId && tabs[k].iframe && !tabs[k].iframe.__restoreTo) {
           tabs[k].scrollY = ifScrollY(tabs[k].iframe);
         }
       }
@@ -1018,7 +1029,8 @@
           // 当前可见标签以实时滚动位置为准；其余用切走时记下的值。
           // 内容还没加载好时不能拿 0 覆盖掉已记住的位置，否则冷启动恢复会失效。
           var y = tabs[i].scrollY || 0;
-          if (tabs[i].id === activeId && ifScrollReady(tabs[i].iframe)) {
+          if (tabs[i].id === activeId && ifScrollReady(tabs[i].iframe) &&
+              !tabs[i].iframe.__restoreTo) {
             y = ifScrollY(tabs[i].iframe);
             tabs[i].scrollY = y;
           }
