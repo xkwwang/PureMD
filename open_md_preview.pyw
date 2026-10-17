@@ -418,8 +418,7 @@ def save_config(obj):
 
 
 APP_NAME = "PureMD"
-APP_VERSION = "1.1.1"
-APP_EMAIL = "xkwwang@126.com"
+APP_VERSION = "1.2.1"
 # 发布到 GitHub 后，把这里填成你的 Releases API 地址（留空则不做更新检查），例如：
 #   https://api.github.com/repos/<你的用户名>/<仓库名>/releases/latest
 UPDATE_CHECK_URL = "https://api.github.com/repos/xkwwang/PureMD/releases/latest"
@@ -510,10 +509,6 @@ class Api:
         except Exception:
             return False
 
-    def feedback(self):
-        """仅返回反馈邮箱，由前端弹窗展示；不自动拉起邮件客户端。"""
-        return {"ok": True, "email": APP_EMAIL}
-
     def open_files(self):
         """打开文件对话框（支持多选），返回 payload 列表；取消返回 None。"""
         paths, err = native_open_dialog_multi()
@@ -586,6 +581,116 @@ class Api:
         try:                                    # 兜底：rundll32（避开 WebView2 工作线程直调 ShellExecute 的坑）
             subprocess.Popen(["rundll32.exe", "url.dll,FileProtocolHandler", url],
                              creationflags=0x08000000)
+            return True
+        except Exception:
+            return False
+
+    # ---- 窗口控制：优先 pywebview，失败则回退 Windows 原生消息 ----
+    # 回退很关键：一旦 pywebview 侧调用失效，窗口会「关不掉 / 最小不了」。
+    _drag_origin = None
+
+    def _hwnd(self):
+        """取窗口句柄：先按标题找，失败则取前台窗口（点击时本窗口必为前台）。"""
+        try:
+            h = ctypes.windll.user32.FindWindowW(None, "PureMD")
+            if h:
+                return h
+            return ctypes.windll.user32.GetForegroundWindow()
+        except Exception:
+            return 0
+
+    def window_minimize(self):
+        try:
+            webview.windows[0].minimize()
+            return True
+        except Exception:
+            pass
+        try:                                    # WM_SYSCOMMAND / SC_MINIMIZE
+            h = self._hwnd()
+            if h:
+                ctypes.windll.user32.PostMessageW(h, 0x0112, 0xF020, 0)
+                return True
+        except Exception:
+            pass
+        return False
+
+    def window_maximize(self):
+        try:
+            webview.windows[0].maximize()
+            return True
+        except Exception:
+            pass
+        try:                                    # WM_SYSCOMMAND / SC_MAXIMIZE
+            h = self._hwnd()
+            if h:
+                ctypes.windll.user32.PostMessageW(h, 0x0112, 0xF030, 0)
+                return True
+        except Exception:
+            pass
+        return False
+
+    def window_restore(self):
+        try:
+            webview.windows[0].restore()
+            return True
+        except Exception:
+            pass
+        try:                                    # WM_SYSCOMMAND / SC_RESTORE
+            h = self._hwnd()
+            if h:
+                ctypes.windll.user32.PostMessageW(h, 0x0112, 0xF120, 0)
+                return True
+        except Exception:
+            pass
+        return False
+
+    def window_close(self):
+        try:
+            webview.windows[0].destroy()
+            return True
+        except Exception:
+            pass
+        try:                                    # WM_CLOSE 兜底，保证一定能关掉
+            h = self._hwnd()
+            if h:
+                ctypes.windll.user32.PostMessageW(h, 0x0010, 0, 0)
+                return True
+        except Exception:
+            pass
+        return False
+
+    # ---- 自绘标题栏拖动：绕开 pywebview 内置 easy_drag（实测在 Edge 内核不可靠） ----
+    # JS 侧累计相对位移，Python 侧叠加到拖动开始时的窗口原点上。
+    def window_drag_start(self):
+        try:
+            h = self._hwnd()
+            if not h:
+                Api._drag_origin = None
+                return False
+            rect = (ctypes.c_long * 4)()        # 等价于 RECT：left, top, right, bottom
+            ctypes.windll.user32.GetWindowRect(h, ctypes.byref(rect))
+            Api._drag_origin = (rect[0], rect[1])
+            return True
+        except Exception:
+            Api._drag_origin = None
+            return False
+
+    def window_move(self, dx, dy):
+        try:
+            org = Api._drag_origin
+            if not org and not self.window_drag_start():
+                return False
+            org = Api._drag_origin
+            h = self._hwnd()
+            if not h:
+                return False
+            # SWP_NOSIZE(0x0001) | SWP_NOZORDER(0x0004)
+            # 注意：绝不能带 SWP_NOMOVE(0x0002)，否则 SetWindowPos 会忽略上面传入的
+            # x/y 坐标，窗口就完全拖不动（本 bug 曾导致拖动失效）。
+            ctypes.windll.user32.SetWindowPos(
+                h, None, int(org[0]) + int(dx), int(org[1]) + int(dy),
+                0, 0, 0x0001 | 0x0004,
+            )
             return True
         except Exception:
             return False
@@ -891,9 +996,15 @@ def start_hub(first_payload):
         hub_html = hub_html.replace('var APP_VERSION = "dev";', 'var APP_VERSION = "%s";' % APP_VERSION, 1)
     except Exception:
         pass
-    # 会话恢复：把上次关闭时开着的标签按保存顺序注入 __pending（激活项排最后，
-    # 恢复后即为当前标签）；前端 DOM 就绪后会自动 addTab 重建它们。
-    # JSON 必须转义 "</" 为 "<\/"，否则内容里的 </script> 会提前截断脚本。
+    # 会话恢复：把上次关闭时开着的标签按保存顺序重建（激活项排最后，恢复后即
+    # 当前标签）。重要：这些 payload 累计渲染后 HTML 常达 1~2MB+，绝不能像旧版
+    # 那样内联进 hub_html 再走 create_window(html=...) 注入——pywebview 的 Edge
+    # 后端用 CoreWebView2.NavigateToString 喂字符串，而微软明确限定其总大小
+    # 不得超过 2MB，超限时导航静默失败、整页白屏（这正是之前 7 文件会话必白屏的
+    # 真正根因，与 <body> 标签污染无关）。故此处只“收集”payload，待窗口就绪后改
+    # 走与“运行时双击新标签”完全相同的通道（js_inject → evaluate_js，即
+    # ExecuteScriptAsync，无 2MB 限制）逐条 addTab，从根上避开该限制。
+    _session_payloads = []
     try:
         _sess = _cfg.get("session") if isinstance(_cfg, dict) else None
         if isinstance(_sess, dict):
@@ -905,33 +1016,60 @@ def start_hub(first_payload):
             if _active in _paths:
                 _paths.remove(_active)
                 _paths.append(_active)   # 激活项排最后 → 恢复后即当前标签
-            _payloads = []
-            for _p in _paths:
+            # 上次关闭时每个文件的阅读位置（滚动像素），按绝对路径索引
+            _scroll = _sess.get("scroll") if isinstance(_sess.get("scroll"), dict) else {}
+            _scroll_abs = {}
+            for _k, _v in _scroll.items():
                 try:
-                    _payloads.append(make_payload(_p))
+                    _scroll_abs[os.path.abspath(_k)] = int(_v or 0)
                 except Exception:
                     pass
-            if _payloads:
-                _json = json.dumps(_payloads, ensure_ascii=False).replace("</", "<\\/")
-                hub_html = hub_html.replace(
-                    "window.__pending = window.__pending || [];",
-                    "window.__pending = %s;" % _json, 1)
+            _first_path = (first_payload or {}).get("path")
+            for _p in _paths:
+                if _first_path and os.path.abspath(_p) == os.path.abspath(_first_path):
+                    continue   # 避免与“本次双击启动的文件”重复成两个标签
+                try:
+                    _pay = make_payload(_p)
+                    # 带上上次读到的位置，前端加载完成后自动滚回原位（不是从头开始）
+                    _pay["scrollY"] = _scroll_abs.get(os.path.abspath(_p), 0)
+                    _session_payloads.append(_pay)
+                except Exception:
+                    pass
+            # 本次双击启动的文件同样适用：若上次会话记过它的位置，就从原位继续
+            try:
+                if _first_path and isinstance(first_payload, dict):
+                    _y = _scroll_abs.get(os.path.abspath(_first_path))
+                    if _y:
+                        first_payload["scrollY"] = _y
+            except Exception:
+                pass
     except Exception:
         pass
-    webview.create_window("PureMD", html=hub_html, width=1000, height=740, js_api=Api())
+    # 仅允许标题栏（.pywebview-drag-region）拖动窗口，避免点工具栏/标签误拖窗口
+    try:
+        webview.settings['DRAG_REGION_DIRECT_TARGET_ONLY'] = True
+    except Exception:
+        pass
+    # easy_drag=False：不用 pywebview 内置拖动（它依赖 window.move，在 Edge 内核上不可靠），
+    # 改由 hub.html 调用 window_drag_start / window_move 自己实现拖动。
+    webview.create_window("PureMD", html=hub_html, width=1000, height=740,
+                          js_api=Api(), frameless=True, easy_drag=False)
     # 关键：args 必须是元组，否则 pywebview 会把 dict 当可迭代对象传给
     # threading.Thread(args=dict) 而抛 TypeError，导致窗口永远不出现。
-    webview.start(_init_hub, (first_payload,))
+    webview.start(_init_hub, (first_payload, _session_payloads))
 
 
-def _init_hub(first_payload):
+def _init_hub(first_payload, session_payloads=None):
     time.sleep(0.4)
-    js_inject(first_payload)
-
-
-def hub_running():
-    pid, _port = read_lock()
-    return bool(pid and pid_alive(pid))
+    # 先恢复上次会话的标签：与“运行时双击新标签”走同一通道（js_inject →
+    # evaluate_js，即 ExecuteScriptAsync），彻底避开 NavigateToString 的 2MB 限制。
+    for _p in (session_payloads or []):
+        try:
+            js_inject(_p)
+        except Exception:
+            pass
+    if first_payload:
+        js_inject(first_payload)
 
 
 # ---------------------------------------------------------------- 文件关联安装

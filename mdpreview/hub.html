@@ -18,10 +18,10 @@
   /* 外层固定条：左右滚动按钮 + 主题按钮固定，不随标签一起滚动 */
   #tabsbar {
     display: flex; align-items: center; gap: 4px;
-    padding: 4px 6px; background: #f6f8fa;
-    border-bottom: 1px solid #d0d7de; flex: 0 0 auto;
+    padding: 3px 6px; background: transparent;
+    border-bottom: 0; flex: 0 0 auto;
+    min-width: 0;
   }
-  body.dark #tabsbar { background: #161b22; border-bottom-color: #30363d; }
   /* 内层标签区：可横向滚动 */
   #tabs {
     display: flex; align-items: stretch; gap: 2px;
@@ -31,19 +31,46 @@
   }
   #tabs::-webkit-scrollbar { height: 0; }
   .tab {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 6px 8px; border: 1px solid transparent;
-    border-radius: 6px 6px 0 0; cursor: pointer; font-size: 13px;
-    white-space: nowrap; user-select: none;
+    display: inline-flex; align-items: center; gap: 2px;
+    padding: 6px 8px; border: 1px solid transparent; border-bottom: 2px solid transparent;
+    border-radius: 6px; cursor: pointer; font-size: 13px;
+    white-space: nowrap; user-select: none; position: relative;
     /* 一行正好容纳 6 个标签：收缩下限 = 可视宽度/6（减掉间隙），第 7 个起才出现箭头 */
     flex: 0 1 auto; max-width: 200px; min-width: calc(100% / 6 - 3px);
+    transition: box-shadow .12s ease;
   }
-  .tab:hover { background: #eaeef2; }
-  body.dark .tab:hover { background: #30363d; }
-  .tab.active { background: #fff; border-color: #d0d7de; border-bottom-color: #fff; }
-  body.dark .tab.active { background: #0d1117; border-color: #30363d; border-bottom-color: #0d1117; }
-  .tab .nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .tab .x { opacity: .45; font-weight: 700; padding: 0 2px; flex: 0 0 auto; }
+  .tab:hover {
+    background: #eaeef2;
+    border-color: #c8d0d8;
+    box-shadow: 0 2px 6px rgba(31, 35, 40, 0.14), inset 0 0 0 1px rgba(255,255,255,0.6);
+    z-index: 1;
+  }
+  body.dark .tab:hover {
+    background: #30363d;
+    border-color: #3b424b;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255,255,255,0.04);
+    z-index: 1;
+  }
+  .tab.active {
+    background: #fff;
+    border-color: #d0d7de;
+    border-bottom-color: #b6c0c9;
+    box-shadow: 0 -3px 8px rgba(31, 35, 40, 0.10), 0 5px 14px rgba(31, 35, 40, 0.22), 0 2px 5px rgba(31, 35, 40, 0.16);
+    z-index: 2;
+  }
+  body.dark .tab.active {
+    background: #0d1117;
+    border-color: #30363d;
+    border-bottom-color: #c9d1d9;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.16), 0 4px 12px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.5);
+    z-index: 2;
+  }
+  .tab .nm {
+    flex: 1 1 auto; min-width: 0; overflow: hidden;
+    -webkit-mask-image: linear-gradient(to left, transparent 0%, black 18px);
+    mask-image: linear-gradient(to left, transparent 0%, black 18px);
+  }
+  .tab .x { opacity: .45; font-weight: 700; padding: 0 4px; flex: 0 0 auto; font-size: 17px; line-height: 1; }
   .tab .x:hover { opacity: 1; color: #cf222e; }
   /* 拖拽调整标签顺序 */
   .tab.dragging { opacity: .45; }
@@ -52,10 +79,29 @@
   .nav {
     display: inline-flex; align-items: center; justify-content: center;
     flex: 0 0 auto; min-width: 26px; align-self: stretch;
-    border: 1px solid #d0d7de; background: #fff; color: #24292f;
+    border: 1px solid #d0d7de; border-bottom: 2px solid #d0d7de; background: #fff; color: #24292f;
     border-radius: 6px; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 6px;
+    position: relative;
+    transition: box-shadow .12s ease;
+  }
+  /* 导航按钮（☰ / ‹ / ›）：hover 圆润阴影方框；选中（下拉展开或按下）时彩色下边框 + 三层下部重阴影，立体凸起，与标签风格一致 */
+  .nav:hover {
+    box-shadow: 0 2px 6px rgba(31,35,40,0.14), inset 0 0 0 1px rgba(255,255,255,0.5);
+    z-index: 1;
+  }
+  .nav:active, .nav.on {
+    border-bottom-color: #6e7781;
+    box-shadow: 0 -3px 8px rgba(31,35,40,0.12), 0 6px 16px rgba(31,35,40,0.28), 0 2px 6px rgba(31,35,40,0.20);
+    z-index: 2;
   }
   body.dark .nav { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+  body.dark .nav:hover {
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.04);
+  }
+  body.dark .nav:active, body.dark .nav.on {
+    border-bottom-color: #c9d1d9;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.16), 0 4px 12px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.5);
+  }
   /* 垂直列显示：点“☰”弹出的标签名列表 */
   #tablist {
     position: fixed; z-index: 50; display: none;
@@ -80,10 +126,35 @@
   #tabmask { position: absolute; inset: 0; z-index: 40; display: none; }
   button.theme {
     flex: 0 0 auto;
-    border: 1px solid #d0d7de; background: #fff; color: #24292f;
-    border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px;
+    border: 1px solid transparent; border-bottom: 2px solid transparent;
+    background: #f6f8fa; color: #24292f;
+    border-radius: 6px; padding: 6px 10px 2px; cursor: pointer; font-size: 12px;
+    position: relative;
+    transition: box-shadow .12s ease;
   }
-  body.dark button.theme { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+  button.theme:hover {
+    background: #fff;
+    border-color: #d0d7de; border-bottom-color: #d0d7de;
+    box-shadow: 0 2px 6px rgba(31,35,40,0.14), inset 0 0 0 1px rgba(255,255,255,0.5);
+    z-index: 1;
+  }
+  button.theme:active, button.theme.on {
+    background: #fff;
+    border-bottom-color: #6e7781;
+    box-shadow: 0 -3px 8px rgba(31,35,40,0.12), 0 6px 16px rgba(31,35,40,0.28), 0 2px 6px rgba(31,35,40,0.20);
+    z-index: 2;
+  }
+  body.dark button.theme { background: #161b22; color: #c9d1d9; border-color: transparent; }
+  body.dark button.theme:hover {
+    background: #21262d;
+    border-color: #30363d; border-bottom-color: #30363d;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.04);
+  }
+  body.dark button.theme:active, body.dark button.theme.on {
+    background: #21262d;
+    border-bottom-color: #c9d1d9;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.16), 0 4px 12px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.5);
+  }
   #views { flex: 1 1 auto; position: relative; overflow: hidden; }
   iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
   body.dark iframe { background: #0d1117; }
@@ -92,43 +163,184 @@
     height: 100%; color: #6e7781; font-size: 14px;
   }
   body.dark .empty { color: #8b949e; }
-  /* 顶部工具栏：打开文件 / 重新加载 / 自动刷新 / 主题按钮 */
-  #topbar {
-    display: flex; align-items: center; gap: 8px;
-    padding: 6px 8px; background: #f6f8fa;
+  /* 顶部 chrome：第一行 = 自绘标题栏（PureMD 文字 + 工具栏 + 窗口控制），第二行 = 标签栏 */
+  #chrome {
+    display: flex; flex-direction: column;
+    background: #f6f8fa;
     border-bottom: 1px solid #d0d7de; flex: 0 0 auto;
   }
-  body.dark #topbar { background: #161b22; border-bottom-color: #30363d; }
-  body.beige #topbar { background: #ede3cc; border-bottom-color: #d8cba8; }
-  #topbar button.toolbtn {
-    border: 1px solid #d0d7de; background: #fff; color: #24292f;
-    border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px;
+  body.dark #chrome { background: #161b22; border-bottom-color: #30363d; }
+  body.beige #chrome { background: #ede3cc; border-bottom-color: #d8cba8; }
+  /* 第一行：标题栏（可拖动区 + 工具按钮 + 窗口最小化/最大化/关闭） */
+  #titlebar {
+    display: flex; align-items: center; gap: 4px;
+    padding: 4px 6px; flex: 0 0 auto;
+    -webkit-user-select: none; user-select: none;
   }
-  body.dark #topbar button.toolbtn { background: #21262d; color: #c9d1d9; border-color: #30363d; }
-  body.beige #topbar button.toolbtn { background: #e6dcc3; color: #4a3b28; border-color: #d8cba8; }
-  #topbar label { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
-  #topbar #status { margin-left: auto; color: #6e7781; font-size: 12px; }
-  body.dark #topbar #status { color: #8b949e; }
-  body.beige #topbar #status { color: #6b5c46; }
+  .drag-area {
+    flex: 0 0 auto; min-width: 0; height: 26px;
+    display: flex; align-items: center; padding: 0 2px;
+    cursor: default;
+  }
+  .app-icon {
+    flex: 0 0 auto; display: block; margin-right: 6px;
+    border-radius: 4px;
+  }
+  .app-title {
+    font-size: 13px; font-weight: 600; letter-spacing: .3px;
+    color: #57606a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  body.dark .app-title { color: #8b949e; }
+  body.beige .app-title { color: #6b5c46; }
+  /* 窗口控制按钮（最小化 / 最大化 / 关闭） */
+  .winctrls { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; margin-left: 4px; }
+  .winbtn {
+    width: 30px; height: 26px; border: 1px solid transparent; background: transparent;
+    color: #57606a; border-radius: 6px; cursor: pointer; font-size: 13px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: box-shadow .12s ease, background .12s ease;
+  }
+  .winbtn:hover { background: #fff; border-color: #d0d7de; box-shadow: 0 2px 6px rgba(31,35,40,0.14); }
+  .winbtn:active { box-shadow: inset 0 0 0 1px rgba(31,35,40,0.14); }
+  .winbtn.close:hover { background: #e5534b; color: #fff; border-color: #e5534b; box-shadow: 0 2px 8px rgba(229,83,75,0.4); }
+  .winbtn:disabled { opacity: .4; cursor: default; }
+  body.dark .winbtn { color: #8b949e; }
+  body.dark .winbtn:hover { background: #21262d; border-color: #30363d; box-shadow: 0 2px 6px rgba(0,0,0,0.35); }
+  body.dark .winbtn:active { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14); }
+  body.dark .winbtn.close:hover { background: #f85149; border-color: #f85149; }
+  body.beige .winbtn { color: #6b5c46; }
+  body.beige .winbtn:hover { background: #e6dcc3; border-color: #d8cba8; box-shadow: 0 2px 6px rgba(74,59,40,0.14); }
+  /* 系统深色模式：标题栏元素也跟随变暗 */
+  @media (prefers-color-scheme: dark) {
+    body:not(.light):not(.beige) .app-title { color: #8b949e; }
+    body:not(.light):not(.beige) .winbtn { color: #8b949e; }
+    body:not(.light):not(.beige) .winbtn:hover { background: #21262d; border-color: #30363d; box-shadow: 0 2px 6px rgba(0,0,0,0.35); }
+    body:not(.light):not(.beige) .winbtn.close:hover { background: #f85149; border-color: #f85149; }
+  }
+  /* 顶部工具栏：打开 / 导出 / 主题 / 重新加载 / 帮助 / 自动刷新 */
+  #topbar {
+    display: flex; align-items: center; gap: 4px;
+    padding: 0; background: transparent;
+    border-bottom: 0; flex: 0 0 auto;
+    margin-left: 4px;
+  }
+  /* 工具栏字体：微软雅黑（Windows 系统自带、完全离线） */
+  #topbar, #topbar button, #topbar label {
+    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+  }
+  #topbar button.toolbtn {
+    border: 1px solid transparent; border-bottom: 2px solid transparent;
+    background: #f6f8fa; color: #24292f;
+    border-radius: 6px; padding: 6px 10px 2px; cursor: pointer; font-size: 12px;
+    position: relative;
+    transition: box-shadow .12s ease;
+  }
+  #topbar button.toolbtn:hover {
+    background: #fff;
+    border-color: #d0d7de; border-bottom-color: #d0d7de;
+    box-shadow: 0 2px 6px rgba(31,35,40,0.14), inset 0 0 0 1px rgba(255,255,255,0.5);
+    z-index: 1;
+  }
+  #topbar button.toolbtn:active, #topbar button.toolbtn.on {
+    background: #fff;
+    border-bottom-color: #6e7781;
+    box-shadow: 0 -3px 8px rgba(31,35,40,0.12), 0 6px 16px rgba(31,35,40,0.28), 0 2px 6px rgba(31,35,40,0.20);
+    z-index: 2;
+  }
+  body.dark #topbar button.toolbtn { background: #161b22; color: #c9d1d9; border-color: transparent; }
+  body.dark #topbar button.toolbtn:hover {
+    background: #21262d;
+    border-color: #30363d; border-bottom-color: #30363d;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.04);
+  }
+  body.dark #topbar button.toolbtn:active, body.dark #topbar button.toolbtn.on {
+    background: #21262d;
+    border-bottom-color: #c9d1d9;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.16), 0 4px 12px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.5);
+  }
+  body.beige #topbar button.toolbtn { background: #ede3cc; color: #4a3b28; border-color: transparent; }
+  body.beige #topbar button.toolbtn:hover {
+    background: #e6dcc3;
+    border-color: #d8cba8; border-bottom-color: #d8cba8;
+    box-shadow: 0 2px 6px rgba(74,59,40,0.14), inset 0 0 0 1px rgba(255,255,255,0.4);
+  }
+  body.beige #topbar button.toolbtn:active, body.beige #topbar button.toolbtn.on {
+    background: #e6dcc3;
+    border-bottom-color: #8c7b52;
+    box-shadow: 0 -3px 8px rgba(74,59,40,0.12), 0 6px 16px rgba(74,59,40,0.28), 0 2px 6px rgba(74,59,40,0.20);
+  }
+  #topbar label { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; position: relative; top: 1.5px; }
+  #status { flex: 0 0 auto; margin-left: auto; color: #6e7781; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+  body.dark #status { color: #8b949e; }
+  body.beige #status { color: #6b5c46; }
   /* 米色（经典纸感 Sepia）：底 #f4ecd8 + 暖棕字 #4a3b28，对比度 9.16:1，落在 7–12:1 阅读舒适区 */
   body.beige { background: #f4ecd8; color: #4a3b28; }
-  body.beige #tabsbar { background: #ede3cc; border-bottom-color: #d8cba8; }
-  body.beige .tab:hover { background: #e0d5b8; }
-  body.beige .tab.active { background: #f4ecd8; border-color: #d8cba8; border-bottom-color: #f4ecd8; }
+  /* tabsbar background now comes from #chrome */
+  body.beige .tab:hover {
+    background: #e0d5b8;
+    border-color: #cbbfa0;
+    box-shadow: 0 2px 6px rgba(74, 59, 40, 0.14), inset 0 0 0 1px rgba(255,255,255,0.4);
+    z-index: 1;
+  }
+  body.beige .tab.active {
+    background: #f4ecd8;
+    border-color: #d8cba8;
+    border-bottom-color: #c2b490;
+    box-shadow: 0 -3px 8px rgba(74, 59, 40, 0.10), 0 5px 14px rgba(74, 59, 40, 0.22), 0 2px 5px rgba(74, 59, 40, 0.16);
+    z-index: 2;
+  }
   body.beige .nav { background: #e6dcc3; color: #4a3b28; border-color: #d8cba8; }
-  body.beige button.theme { background: #e6dcc3; color: #4a3b28; border-color: #d8cba8; }
+  body.beige .nav:hover {
+    box-shadow: 0 2px 6px rgba(74,59,40,0.14), inset 0 0 0 1px rgba(255,255,255,0.4);
+  }
+  body.beige .nav:active, body.beige .nav.on {
+    border-bottom-color: #c2b490;
+    box-shadow: 0 -3px 8px rgba(74,59,40,0.10), 0 5px 14px rgba(74,59,40,0.22), 0 2px 5px rgba(74,59,40,0.16);
+  }
+  body.beige button.theme { background: #ede3cc; color: #4a3b28; border-color: transparent; }
+  body.beige button.theme:hover {
+    background: #e6dcc3;
+    border-color: #d8cba8; border-bottom-color: #d8cba8;
+    box-shadow: 0 2px 6px rgba(74,59,40,0.14), inset 0 0 0 1px rgba(255,255,255,0.4);
+  }
+  body.beige button.theme:active, body.beige button.theme.on {
+    background: #e6dcc3;
+    border-bottom-color: #8c7b52;
+    box-shadow: 0 -3px 8px rgba(74,59,40,0.12), 0 6px 16px rgba(74,59,40,0.28), 0 2px 6px rgba(74,59,40,0.20);
+  }
   body.beige iframe { background: #f4ecd8; }
   body.beige .empty { color: #6b5c46; }
   /* 系统深色模式：让顶层标签栏/按钮也跟随系统一起变暗（之前只有正文跟系统走） */
   @media (prefers-color-scheme: dark) {
     body:not(.light):not(.beige) { background: #0d1117; color: #c9d1d9; }
-    body:not(.light):not(.beige) #tabsbar { background: #161b22; border-bottom-color: #30363d; }
-    body:not(.light):not(.beige) #topbar { background: #161b22; border-bottom-color: #30363d; }
-    body:not(.light):not(.beige) .tab:hover { background: #30363d; }
-    body:not(.light):not(.beige) .tab.active { background: #0d1117; border-color: #30363d; border-bottom-color: #0d1117; }
+    body:not(.light):not(.beige) #chrome { background: #161b22; border-bottom-color: #30363d; }
+    body:not(.light):not(.beige) .tab:hover {
+      background: #30363d;
+      border-color: #3b424b;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255,255,255,0.04);
+      z-index: 1;
+    }
+    body:not(.light):not(.beige) .tab.active {
+      background: #0d1117;
+      border-color: #30363d;
+      border-bottom-color: #c9d1d9;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.16), 0 4px 12px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.5);
+      z-index: 2;
+    }
     body:not(.light):not(.beige) .nav { background: #21262d; color: #c9d1d9; border-color: #30363d; }
-    body:not(.light):not(.beige) button.theme { background: #21262d; color: #c9d1d9; border-color: #30363d; }
-    body:not(.light):not(.beige) #topbar button.toolbtn { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+    body:not(.light):not(.beige) .nav:hover {
+      box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.04);
+    }
+    body:not(.light):not(.beige) .nav:active, body:not(.light):not(.beige) .nav.on {
+      border-bottom-color: #c9d1d9;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.16), 0 4px 12px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.5);
+    }
+    body:not(.light):not(.beige) button.theme { background: #161b22; color: #c9d1d9; border-color: transparent; }
+    body:not(.light):not(.beige) button.theme:hover { background: #21262d; border-color: #30363d; border-bottom-color: #30363d; box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.04); }
+    body:not(.light):not(.beige) button.theme:active, body:not(.light):not(.beige) button.theme.on { background: #21262d; border-bottom-color: #c9d1d9; box-shadow: 0 0 0 1px rgba(255,255,255,0.16), 0 4px 12px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.5); }
+    body:not(.light):not(.beige) #topbar button.toolbtn { background: #161b22; color: #c9d1d9; border-color: transparent; }
+    body:not(.light):not(.beige) #topbar button.toolbtn:hover { background: #21262d; border-color: #30363d; border-bottom-color: #30363d; box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.04); }
+    body:not(.light):not(.beige) #topbar button.toolbtn:active, body:not(.light):not(.beige) #topbar button.toolbtn.on { background: #21262d; border-bottom-color: #c9d1d9; box-shadow: 0 0 0 1px rgba(255,255,255,0.16), 0 4px 12px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.5); }
     body:not(.light):not(.beige) #tablist { background: #161b22; border-color: #30363d; }
     body:not(.light):not(.beige) #tablist .li:hover,
     body:not(.light):not(.beige) #tablist .li.active { background: #30363d; }
@@ -201,20 +413,36 @@
 </style>
 </head>
 <body>
-  <div id="topbar">
-    <button class="toolbtn" id="openBtn">打开文件</button>
-    <button class="theme" id="themeBtn" onclick="toggleTheme()">主题：亮色</button>
-    <button class="toolbtn" id="exportBtn" title="导出：PDF / Word（.docx）">导出</button>
-    <button class="toolbtn" id="reloadBtn">重新加载</button>
-    <label><input type="checkbox" id="watchChk"> 自动刷新</label>
-    <button class="toolbtn" id="helpBtn" title="帮助：反馈问题 / 关于本软件">帮助</button>
-    <span id="status"></span>
-  </div>
-  <div id="tabsbar">
-    <button class="nav" id="navList" title="垂直列出所有标签">&#9776;</button>
-    <button class="nav" id="navPrev" title="标签向左滚动">&#8249;</button>
-    <div id="tabs"></div>
-    <button class="nav" id="navNext" title="标签向右滚动">&#8250;</button>
+  <div id="chrome">
+    <div id="titlebar" class="pywebview-drag-region">
+      <div class="drag-area pywebview-drag-region">
+        <svg class="app-icon pywebview-drag-region" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <rect x="1.5" y="1.5" width="21" height="21" rx="5.5" fill="#0a84ff"/>
+          <path d="M7 17 V8 L12 12.5 L17 8 V17" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="app-title pywebview-drag-region">PureMD</span>
+      </div>
+      <div id="topbar">
+        <button class="toolbtn" id="openBtn">打开</button>
+        <button class="toolbtn" id="exportBtn" title="导出：PDF / Word（.docx）">导出</button>
+        <button class="theme" id="themeBtn" onclick="toggleTheme()">主题：亮色</button>
+        <button class="toolbtn" id="reloadBtn">重新加载</button>
+        <button class="toolbtn" id="helpBtn" title="帮助：反馈问题 / 关于本软件">帮助</button>
+        <label><input type="checkbox" id="watchChk"> 自动刷新</label>
+      </div>
+      <span id="status"></span>
+      <div class="winctrls">
+        <button class="winbtn" id="minBtn" title="最小化">&#8211;</button>
+        <button class="winbtn" id="maxBtn" title="最大化">&#9633;</button>
+        <button class="winbtn close" id="closeBtn" title="关闭">&#10005;</button>
+      </div>
+    </div>
+    <div id="tabsbar">
+      <button class="nav" id="navList" title="垂直列出所有标签">&#9776;</button>
+      <button class="nav" id="navPrev" title="标签向左滚动">&#8249;</button>
+      <div id="tabs"></div>
+      <button class="nav" id="navNext" title="标签向右滚动">&#8250;</button>
+    </div>
   </div>
   <div id="tablist"></div>
   <div id="exportMenu" class="popmenu">
@@ -228,6 +456,75 @@
     <div class="hli" id="helpAbout">关于</div>
   </div>
   <div id="views"><div id="tabmask"></div><div class="empty">没有打开的文档 &mdash; 双击任意 .md 即可在此打开</div></div>
+
+  <script>
+  /* 独立自包含脚本：放在 chrome 绘制之后、主脚本之前，不依赖后面任何代码。
+     作用是把「窗口控制」和「标题栏拖动」做成最底层能力——即使后续脚本出错，
+     最小 / 最大化 / 关闭 / 拖动依然可用（否则会出现关不掉窗口的死局）。 */
+  (function () {
+    function note(m) { try { var s = document.getElementById("status"); if (s) s.textContent = m; } catch (e) {} }
+    function ready() { return !!(window.pywebview && window.pywebview.api); }
+    function callApi(name) {
+      if (!ready()) { note("窗口控制需要更新后的 exe"); return null; }
+      try { return window.pywebview.api[name](); } catch (e) { note("窗口控制调用失败"); return null; }
+    }
+
+    /* ---- 窗口控制 ---- */
+    var minB = document.getElementById("minBtn");
+    var maxB = document.getElementById("maxBtn");
+    var closeB = document.getElementById("closeBtn");
+    if (minB) {
+      minB.dataset.wired = "1";
+      minB.addEventListener("click", function () { callApi("window_minimize"); });
+    }
+    if (closeB) {
+      closeB.dataset.wired = "1";
+      closeB.addEventListener("click", function () {
+        // 关闭前尽力再落盘一次阅读位置（真正的位置保存在滚动停止时已写入，
+        // 这里只是双保险，失败也不影响退出）
+        try { if (window.saveSession) window.saveSession(); } catch (e) {}
+        callApi("window_close");
+      });
+    }
+    if (maxB) {
+      maxB.dataset.wired = "1";
+      maxB.addEventListener("click", function () {
+        var maxed = maxB.getAttribute("data-max") === "1";
+        var p = callApi(maxed ? "window_restore" : "window_maximize");
+        var done = function () {
+          maxB.setAttribute("data-max", maxed ? "0" : "1");
+          maxB.innerHTML = maxed ? "&#9633;" : "&#9634;";
+          maxB.title = maxed ? "最大化" : "还原";
+        };
+        if (p && p.then) { p.then(done); } else { done(); }
+      });
+    }
+
+    /* ---- 标题栏拖动（自建实现，不依赖 pywebview 内置 easy_drag） ---- */
+    var dragging = false, sx = 0, sy = 0;
+    function inDragRegion(el) {
+      try { return !!(el && el.closest && el.closest(".pywebview-drag-region")); } catch (e) { return false; }
+    }
+    document.addEventListener("mousedown", function (ev) {
+      if (ev.button !== 0) return;
+      var t = ev.target;
+      if (!inDragRegion(t)) return;
+      // 不要吃掉按钮 / 复选框 / 链接等可交互元素的点击
+      if (t.closest && t.closest("button, input, select, textarea, a, label")) return;
+      if (!ready()) return;
+      dragging = true;
+      sx = ev.screenX; sy = ev.screenY;
+      try { window.pywebview.api.window_drag_start(); } catch (e) {}
+      ev.preventDefault();
+    });
+    window.addEventListener("mousemove", function (ev) {
+      if (!dragging || !ready()) return;
+      try { window.pywebview.api.window_move(ev.screenX - sx, ev.screenY - sy); } catch (e) {}
+    });
+    window.addEventListener("mouseup", function () { dragging = false; });
+    window.addEventListener("blur", function () { dragging = false; });
+  })();
+  </script>
 
   <script>
     window.__pending = window.__pending || [];
@@ -435,23 +732,104 @@
       document.getElementById("tabs").appendChild(el);
 
       var iframe = document.createElement("iframe");
+      // scrollY：恢复上次关闭本软件时的阅读位置（由 Python 侧从会话配置带入）
+      var t = { id: id, name: p.name, path: p.path || "", el: el, iframe: iframe,
+                scrollY: p.scrollY || 0 };
+      try {
+        iframe.addEventListener("load", function () {
+          applyTheme(iframe);
+          watchScroll(t);                       // 监听滚动，实时记下阅读位置
+          if (t.scrollY) restoreScroll(iframe, t.scrollY);
+        });
+      } catch (e) {}
       iframe.srcdoc = p.html;
-      try { iframe.addEventListener("load", function(){ applyTheme(iframe); }); } catch(e){}
       document.getElementById("views").appendChild(iframe);
 
-      var t = { id: id, name: p.name, path: p.path || "", el: el, iframe: iframe };
       tabs.push(t);
       activate(id);
       updateNav();
       saveSession();
     }
 
+    // ---- 阅读位置记忆：切换标签时记住滚动位置，切回时恢复 ----
+    // iframe 一旦 display:none 就脱离布局，再次显示会重新布局并把滚动位置清零，
+    // 所以必须在切走前主动读取、切回后主动写回。
+    function ifScrollY(fr) {
+      try {
+        var w = fr.contentWindow, d = fr.contentDocument;
+        if (!w || !d) return 0;
+        if (typeof w.pageYOffset === "number") return w.pageYOffset;
+        return (d.documentElement && d.documentElement.scrollTop) || (d.body && d.body.scrollTop) || 0;
+      } catch (e) { return 0; }
+    }
+    function ifScrollTo(fr, y) {
+      try {
+        var w = fr.contentWindow, d = fr.contentDocument;
+        if (!w || !d || !y) return;
+        if (w.scrollTo) w.scrollTo(0, y);
+        else {
+          if (d.documentElement) d.documentElement.scrollTop = y;
+          if (d.body) d.body.scrollTop = y;
+        }
+      } catch (e) {}
+    }
+    // 恢复显示后布局要 1~2 帧才稳定，重试几次确保真的落位
+    function restoreScroll(fr, y) {
+      if (!fr || !y) return;
+      var tries = 0;
+      function step() {
+        if (!fr.parentNode) return;               // 标签已被关闭
+        if (fr.style.display === "none") return;  // 期间又切走了，放弃恢复
+        ifScrollTo(fr, y);
+        // 冷启动恢复时文档往往还没完成布局（图片/字体加载会改变文档高度），
+        // 只滚一次常常会落空，多试几轮才能真的停在原位。
+        if (++tries < 6) setTimeout(step, 80);
+      }
+      step();
+    }
+
+    // ---- 阅读位置持续持久化 ----
+    // 只在滚动停止后写一次配置（尾部防抖），避免每帧都写盘；这样即使直接关窗口
+    // 或被强杀，上次读到的位置也已经落盘，下次冷启动能接着读。
+    var scrollSaveTimer = null;
+    function scheduleSave() {
+      try {
+        if (scrollSaveTimer) clearTimeout(scrollSaveTimer);
+        scrollSaveTimer = setTimeout(function () { scrollSaveTimer = null; saveSession(); }, 800);
+      } catch (e) {}
+    }
+    // iframe 内容尚未就绪时 ifScrollY 会返回 0，不能拿它覆盖已记住的位置
+    function ifScrollReady(fr) {
+      try {
+        return !!(fr && fr.contentWindow && fr.contentDocument && fr.contentDocument.body);
+      } catch (e) { return false; }
+    }
+    // 给已加载的标签装上滚动监听
+    function watchScroll(t) {
+      try {
+        var w = t.iframe.contentWindow;
+        if (!w || t.__scrollWatched) return;
+        t.__scrollWatched = true;
+        w.addEventListener("scroll", function () {
+          t.scrollY = ifScrollY(t.iframe);
+          scheduleSave();
+        }, { passive: true });
+      } catch (e) {}
+    }
+
     function activate(id) {
+      // 切走前：先记下当前活动标签的阅读位置
+      for (var k = 0; k < tabs.length; k++) {
+        if (tabs[k].id === activeId && tabs[k].iframe) {
+          tabs[k].scrollY = ifScrollY(tabs[k].iframe);
+        }
+      }
       activeId = id;
       for (var i = 0; i < tabs.length; i++) {
         var on = tabs[i].id === id;
         tabs[i].el.classList.toggle("active", on);
         tabs[i].iframe.style.display = on ? "block" : "none";
+        if (on) restoreScroll(tabs[i].iframe, tabs[i].scrollY || 0);
         // 切换时把当前标签滚进可视范围
         if (on && tabs[i].el && tabs[i].el.scrollIntoView) {
           try { tabs[i].el.scrollIntoView({ block: "nearest", inline: "nearest" }); } catch (e) {}
@@ -549,6 +927,8 @@
         if (ids[i] === exceptId) continue;
         var m = document.getElementById(ids[i]);
         if (m) m.style.display = "none";
+        var b = document.getElementById(ids[i].replace(/Menu$/, "Btn"));
+        if (b) b.classList.remove("on");           // 同步清掉按钮选中态
       }
     }
     function _anyMenuOpen() {
@@ -577,10 +957,12 @@
           box.style.left = Math.max(4, r.left) + "px";
           box.style.top = (r.bottom + 4) + "px";
           box.style.display = "block";
+          btn.classList.add("on");               // ☰ 选中态：立体凸起 + 阴影
           var mask = document.getElementById("tabmask");
           if (mask) mask.style.display = "block";
         } else {
           box.style.display = "none";
+          btn.classList.remove("on");
           _syncMask();
         }
       } catch (err) {}
@@ -601,10 +983,12 @@
           menu.style.left = Math.max(4, r.left) + "px";
           menu.style.top = (r.bottom + 4) + "px";
           menu.style.display = "block";
+          if (btn) btn.classList.add("on");      // 下拉展开 = 按钮选中态：立体凸起 + 阴影
           var mask = document.getElementById("tabmask");
           if (mask) mask.style.display = "block";
         } else {
           menu.style.display = "none";
+          if (btn) btn.classList.remove("on");
           _syncMask();
         }
       } catch (err) {}
@@ -627,12 +1011,27 @@
     function saveSession() {
       try {
         if (!hasApi() || !window.pywebview.api.set_config) return;
-        var files = [];
-        for (var i = 0; i < tabs.length; i++) { if (tabs[i].path) files.push(tabs[i].path); }
+        var files = [], scroll = {};
+        for (var i = 0; i < tabs.length; i++) {
+          if (!tabs[i].path) continue;
+          files.push(tabs[i].path);
+          // 当前可见标签以实时滚动位置为准；其余用切走时记下的值。
+          // 内容还没加载好时不能拿 0 覆盖掉已记住的位置，否则冷启动恢复会失效。
+          var y = tabs[i].scrollY || 0;
+          if (tabs[i].id === activeId && ifScrollReady(tabs[i].iframe)) {
+            y = ifScrollY(tabs[i].iframe);
+            tabs[i].scrollY = y;
+          }
+          scroll[tabs[i].path] = Math.round(y) || 0;
+        }
         var active = activeTab();
-        saveCfg({ session: { files: files, active: (active && active.path) ? active.path : "" } });
+        saveCfg({ session: { files: files, active: (active && active.path) ? active.path : "",
+                             scroll: scroll } });
       } catch (e) {}
     }
+    // 窗口被关闭/进程退出前的最后一道保险：尽力再写一次会话
+    window.addEventListener("beforeunload", function () { try { saveSession(); } catch (e) {} });
+    window.addEventListener("pagehide", function () { try { saveSession(); } catch (e) {} });
 
     function closeTab(id) {
       var idx = -1;
@@ -914,7 +1313,13 @@
         for (var i = 0; i < tabs.length; i++) { if (tabs[i].name === p.name) { hit = tabs[i]; break; } }
         if (!hit) return;
         var fr = hit.iframe;
-        fr.onload = function () { applyTheme(fr); };
+        // 自动刷新 / 重新加载前先记下当前阅读位置，重载后写回，避免跳回开头
+        var keep = ifScrollY(fr);
+        hit.scrollY = keep;
+        fr.onload = function () {
+          applyTheme(fr);
+          restoreScroll(fr, keep);
+        };
         fr.srcdoc = p.html;
       } catch (e) {}
     };
@@ -990,6 +1395,7 @@
       } catch (e) {}
     }
     wireToolbar();
+
 
     // 绑定左右滚动按钮；鼠标滚轮上下滚也转成标签区横向滚动
     try {

@@ -32,14 +32,10 @@ jobs:
           pip install pyinstaller pywebview markdown-it-py[linkify] python-docx
 
       - name: Build executable
-        run: |
-          pyinstaller --noconfirm --noconsole --onedir --name PureMD `
-            --icon mdpreview/md_preview.ico `
-            --add-data "mdpreview;mdpreview" `
-            --collect-data webview --collect-submodules webview `
-            --collect-data docx --collect-submodules markdown_it --collect-submodules docx `
-            --hidden-import webview.platforms.edgechromium `
-            open_md_preview.pyw
+        # 走仓库根目录的精简 spec（与本地 rebuild_exe.cmd 同一配置）：
+        # 精确打包清单 + lxml 裁剪 + optimize=2，保证 CI 发布产物与
+        # 本地验证过的构建体积、行为一致，不再用旧的宽撒网 CLI 参数
+        run: pyinstaller --noconfirm PureMD.spec
 
       - name: Assemble distribution
         # 把构建产物放进 dist_share/PureMD/PureMD，make_zip.py 会再把 release-assets/ 折叠进来

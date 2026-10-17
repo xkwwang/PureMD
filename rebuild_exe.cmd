@@ -18,7 +18,9 @@ if exist "md_preview_app\PureMD" (
 )
 
 echo Building... (this takes 1-3 minutes, please wait)
-"%PYI%" --noconsole --onedir --name PureMD --icon mdpreview\md_preview.ico --add-data "mdpreview;mdpreview" --collect-data webview --collect-submodules webview --hidden-import webview.platforms.edgechromium --collect-data docx --collect-submodules markdown_it --collect-submodules docx --distpath md_preview_app open_md_preview.pyw
+REM 走 PureMD.spec（精确的 datas/hiddenimports/excludes 清单），
+REM 不要再用宽泛的 --collect-submodules，否则体积会膨胀回 35MB。
+"%PYI%" --noconfirm --distpath md_preview_app PureMD.spec
 if errorlevel 1 (
   echo BUILD FAILED
   pause
