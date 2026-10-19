@@ -16,7 +16,7 @@ import re
 from html import unescape
 
 from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_COLOR_INDEX
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -180,6 +180,39 @@ def _setup_document(doc):
     sec.top_margin = sec.bottom_margin = Cm(2.5)
 
 
+def _mark_rule(state, silent):
+    """==文字== → mark（与模板里的行内规则一致，保证预览与 Word 解析相同）。"""
+    src, pos = state.src, state.pos
+    if pos + 1 >= state.posMax:
+        return False
+    if src[pos] != "=" or src[pos + 1] != "=":
+        return False
+    if pos > 0 and src[pos - 1] == "\\":
+        return False
+    end, i = -1, pos + 2
+    while i < state.posMax - 1:
+        if src[i] == "\n":
+            return False
+        if src[i] == "=" and src[i + 1] == "=":
+            end = i
+            break
+        i += 1
+    if end < 0:
+        return False
+    inner = src[pos + 2:end]
+    if not inner or inner[0].isspace() or inner[-1].isspace():
+        return False
+    if not silent:
+        state.push("mark_open", "mark", 1)
+        toks = []
+        state.md.inline.parse(inner, state.md, state.env, toks)
+        for t in toks:
+            state.tokens.append(t)
+        state.push("mark_close", "mark", -1)
+    state.pos = end + 2
+    return True
+
+
 def _make_md():
     """与浏览器端 template.html 的 markdownit(...) 参数保持一致。"""
     md = MarkdownIt("default")
@@ -187,6 +220,10 @@ def _make_md():
     md.options["linkify"] = True
     md.options["typographer"] = True
     md.options["breaks"] = False
+    try:
+        md.inline.ruler.before("emphasis", "pm_mark", _mark_rule)
+    except Exception:
+        pass
     return md
 
 
@@ -203,7 +240,7 @@ class _Converter:
         self.quote_depth = 0
         self.item_prefix = None     # list_item_open 产生，paragraph_open 消费
         # 行内状态
-        self.style = {"bold": False, "italic": False, "strike": False}
+        self.style = {"bold": False, "italic": False, "strike": False, "mark": False}
         self.link_stack = []
         # 表格状态
         self.table = None
@@ -315,6 +352,10 @@ class _Converter:
                 self.style["strike"] = True
             elif t == "s_close":
                 self.style["strike"] = False
+            elif t == "mark_open":
+                self.style["mark"] = True
+            elif t == "mark_close":
+                self.style["mark"] = False
             elif t == "link_open":
                 self.link_stack.append((ch.attrs or {}).get("href", ""))
             elif t == "link_close":
@@ -524,6 +565,12 @@ class _Converter:
             r.font.italic = True
         if seg.get("strike"):
             r.font.strike = True
+        if seg.get("mark"):
+            # 源文件里的 ==高亮== 在 Word 里也显示成黄色底纹，而不是冒出一堆等号
+            try:
+                r.font.highlight_color = WD_COLOR_INDEX.YELLOW
+            except Exception:
+                _shade_run(r, "FFF3B0")
         if seg.get("code"):
             _set_run_fonts(r, CODE_FONT, BODY_EA_FONT)
             r.font.size = Pt(10)

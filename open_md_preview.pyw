@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
-"""双击 .md → 单实例多标签纯预览窗口（无编辑器、不写任何文件、不改源文件）。
+"""双击 .md → 单实例多标签预览窗口（默认只读预览，不写任何文件、不改源文件）。
 
 机制：
 - 第一个 .md 启动一个常驻窗口，并占用一个本地 TCP 端口作为单实例锁（优先 54321，若被占用则自动改用系统分配的空闲端口）。
 - 之后双击的 .md 作为新进程连上该端口，把渲染好的 HTML 发给常驻窗口，新增一个标签页。
 - 全部在内存中传输：源 .md 只读、零改动，且不生成任何额外文件。
+- 需要改文字时，点工具栏「编辑」进入编辑模式，改完点「保存」才写回源文件
+  （写前自动复制一份 .bak，按原编码与原换行风格写回）——除此之外任何时候都不写盘。
 - 自愈：若已有实例但已损坏（窗口没建起来 / 不响应），新实例会向旧实例发 kill 指令让其退出，自己接管端口，避免"双击完全没反应"。
 - 端口信息记录在 mdpreview/.hub.lock（格式：PID<换行>PORT），新实例据此找到在监听的端口。
 """
-import sys, os, base64, json, ctypes, socket, threading, time, atexit, subprocess, re
+import sys, os, base64, json, ctypes, socket, threading, time, atexit, subprocess, re, shutil
 import urllib.request
 try:
     import winreg
@@ -69,34 +71,79 @@ def _selftest():
         pass
 
 
-def _read_text(md_path):
-    """只读读取 .md 文本，自动处理编码（UTF-8 / 带 BOM / GBK / GB18030 / Big5 等）。永不写回源文件。"""
+def _read_text_meta(md_path):
+    """读取 .md 并返回 (文本, 编码, 换行符)。
+
+    保存回写时要用"同一个编码 + 同一个换行风格"，否则 GBK 文档会变乱码、
+    LF 文档会被改成 CRLF（整篇 diff 全红）。默认读取路径仍是只读的。
+    """
     with open(md_path, "rb") as f:
         raw = f.read()
-    # 1) 优先 UTF-8（最常用，且中文文献多为 UTF-8）
-    try:
-        return raw.decode("utf-8")
-    except UnicodeDecodeError:
-        pass
-    # 2) 常见中文编码：GBK / GB18030（大陆老文档）、Big5（繁体）、UTF-8-SIG
-    for enc in ("gb18030", "gbk", "big5", "utf-8-sig"):
+    nl = "\r\n" if b"\r\n" in raw else "\n"
+    enc = "utf-8"
+    text = None
+    if raw[:3] == b"\xef\xbb\xbf":
+        enc = "utf-8-sig"
         try:
-            return raw.decode(enc)
+            text = raw.decode(enc)
         except UnicodeDecodeError:
-            continue
-    # 3) 仍有 chardet 就交给它探测
-    try:
-        import chardet
-        det = chardet.detect(raw)
-        if det and det.get("encoding"):
-            try:
-                return raw.decode(det["encoding"])
-            except (UnicodeDecodeError, LookupError):
-                pass
-    except Exception:
-        pass
-    # 4) 兜底：替换无法识别的字符，保证能渲染
-    return raw.decode("utf-8", errors="replace")
+            text = None
+    if text is None:
+        try:
+            text = raw.decode("utf-8")
+            enc = "utf-8"
+        except UnicodeDecodeError:
+            for cand in ("gb18030", "gbk", "big5", "utf-8-sig"):
+                try:
+                    text = raw.decode(cand)
+                    enc = cand
+                    break
+                except UnicodeDecodeError:
+                    continue
+    if text is None:
+        try:
+            import chardet
+            det = chardet.detect(raw)
+            if det and det.get("encoding"):
+                text = raw.decode(det["encoding"])
+                enc = det["encoding"]
+        except Exception:
+            pass
+    if text is None:
+        text = raw.decode("utf-8", errors="replace")
+        enc = "utf-8"
+    return text, enc, nl
+
+
+def _read_text(md_path):
+    """只读读取 .md 文本，自动处理编码（UTF-8 / 带 BOM / GBK / GB18030 / Big5 等）。永不写回源文件。"""
+    return _read_text_meta(md_path)[0]
+
+
+# 本进程内已经备份过的文件（同一文件只备份一次，避免反复保存把原始稿冲掉）
+_BACKED_UP = set()
+
+
+def _backup_once(path):
+    """保存前留一份备份，返回备份路径。
+
+    - 同一次运行里，同一个文件只在第一次保存时备份；
+    - 若 xxx.md.bak 已存在（以前改过），不覆盖它，改用 xxx.md.bak-时间戳，
+      保证最早那一版永远还在。
+    """
+    key = os.path.abspath(path).lower()
+    if key in _BACKED_UP:
+        return ""
+    target = path + ".bak"
+    if os.path.exists(target):
+        target = path + ".bak-" + time.strftime("%Y%m%d-%H%M%S")
+        n = 1
+        while os.path.exists(target):
+            target = path + ".bak-" + time.strftime("%Y%m%d-%H%M%S") + "-%d" % n
+            n += 1
+    shutil.copy2(path, target)
+    _BACKED_UP.add(key)
+    return target
 
 
 def render_to_html(md_path):
@@ -238,6 +285,76 @@ def native_open_dialog():
             return _open_dialog_powershell(), None
         except Exception as e2:
             return None, "comdlg32: %r；PowerShell: %r" % (e1, e2)
+
+
+# ---------------------------------------------------------------- 文件夹选择框（侧栏“打开文件夹”用）
+FOLDER_TITLE = "选择要浏览的文件夹"
+
+
+def _pick_folder_comdlg():
+    """Win32 SHBrowseForFolderW：快、零子进程。返回路径或 None（取消）。"""
+    from ctypes import wintypes, byref, create_unicode_buffer, windll
+
+    class BROWSEINFO(ctypes.Structure):
+        _fields_ = [
+            ("hwndOwner", wintypes.HWND), ("pidlRoot", ctypes.c_void_p),
+            ("pszDisplayName", wintypes.LPWSTR), ("lpszTitle", wintypes.LPCWSTR),
+            ("ulFlags", ctypes.c_uint), ("lpfn", ctypes.c_void_p),
+            ("lParam", ctypes.c_void_p), ("iImage", ctypes.c_int),
+        ]
+
+    disp = create_unicode_buffer(1024)
+    bi = BROWSEINFO()
+    bi.hwndOwner = 0
+    bi.pszDisplayName = ctypes.cast(disp, wintypes.LPWSTR)
+    bi.lpszTitle = FOLDER_TITLE
+    bi.ulFlags = 0x00000040     # BIF_RETURNONLYFSDIRS：只返回真实文件夹
+    sh = windll.shell32
+    sh.SHBrowseForFolderW.argtypes = [ctypes.POINTER(BROWSEINFO)]
+    sh.SHBrowseForFolderW.restype = ctypes.c_void_p
+    sh.SHGetPathFromIDListW.argtypes = [ctypes.c_void_p, wintypes.LPWSTR]
+    sh.SHGetPathFromIDListW.restype = ctypes.c_int
+    windll.ole32.CoTaskMemFree.argtypes = [ctypes.c_void_p]
+    windll.ole32.CoTaskMemFree.restype = None
+    pidl = sh.SHBrowseForFolderW(byref(bi))
+    if not pidl:
+        return None
+    out = create_unicode_buffer(1024)
+    ok = sh.SHGetPathFromIDListW(pidl, out)
+    windll.ole32.CoTaskMemFree(pidl)
+    if not ok:
+        return None
+    return out.value or None
+
+
+def _pick_folder_powershell():
+    """回退：PowerShell(-STA) WinForms FolderBrowserDialog。返回路径或 None。"""
+    safe = FOLDER_TITLE.replace("'", "''")
+    script = (
+        "Add-Type -AssemblyName System.Windows.Forms;"
+        "$d = New-Object System.Windows.Forms.FolderBrowserDialog;"
+        "$d.Description = '" + safe + "';"
+        "$d.ShowNewFolderButton = $false;"
+        "if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }"
+    )
+    r = subprocess.run(
+        ["powershell", "-NoProfile", "-STA", "-NonInteractive", "-Command", script],
+        capture_output=True, text=True, timeout=600,
+        creationflags=0x08000000,
+    )
+    out = (r.stdout or "").strip()
+    return out.splitlines()[0].strip() if out else None
+
+
+def native_pick_folder():
+    """返回 (path, err)：path 为 None 表示用户取消；err 非 None 表示两条路都失败。"""
+    try:
+        return _pick_folder_comdlg(), None
+    except Exception as e1:
+        try:
+            return _pick_folder_powershell(), None
+        except Exception as e2:
+            return None, "SHBrowseForFolder: %r；PowerShell: %r" % (e1, e2)
 
 
 # ---------------------------------------------------------------- 保存对话框（导出 .docx 用）
@@ -404,21 +521,34 @@ def load_config():
     return {}
 
 
+_CFG_LOCK = threading.Lock()
+
+
 def save_config(obj):
+    """把 obj 合并进 config.json。
+
+    pywebview 会把每个 js_api 调用放到独立线程，前端的「改颜色」「存高亮」这类
+    连续调用可能并发进来；不串行化的话会出现"读到旧内容 → 互相覆盖"（曾经实测
+    丢过一次高亮）。这里用锁把「读 → 改 → 写」包成原子操作，并先写临时文件再
+    os.replace，避免写一半被关窗口留下半个 JSON。
+    """
     try:
         p, d = _config_path()
         os.makedirs(d, exist_ok=True)
-        cur = load_config()
-        if isinstance(obj, dict):
-            cur.update(obj)
-        with open(p, "w", encoding="utf-8") as f:
-            json.dump(cur, f, ensure_ascii=False, indent=2)
+        with _CFG_LOCK:
+            cur = load_config()
+            if isinstance(obj, dict):
+                cur.update(obj)
+            tmp = p + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(cur, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, p)
     except Exception:
         pass
 
 
 APP_NAME = "PureMD"
-APP_VERSION = "1.2.2"
+APP_VERSION = "1.5.4"
 # 发布到 GitHub 后，把这里填成你的 Releases API 地址（留空则不做更新检查），例如：
 #   https://api.github.com/repos/<你的用户名>/<仓库名>/releases/latest
 UPDATE_CHECK_URL = "https://api.github.com/repos/xkwwang/PureMD/releases/latest"
@@ -524,6 +654,92 @@ class Api:
                 items.append({"error": "渲染失败：%r" % (e,)})
         return items
 
+    # ---- 左侧文件夹侧栏 ----
+    def pick_folder(self):
+        """弹出文件夹选择框，返回选中路径字符串；取消返回 None；失败返回 {"error": ...}。"""
+        p, err = native_pick_folder()
+        if err:
+            return {"error": "无法打开文件夹选择框：" + err}
+        return p
+
+    def list_dir(self, path):
+        """列出某文件夹下的子文件夹与 .md/.markdown 文件（隐藏项跳过），按字母序。
+        返回 {"folders": [...], "files": [...]}；失败返回 {"error": ...}。"""
+        if not path or not os.path.isdir(path):
+            return {"error": "无效的文件夹路径"}
+        try:
+            folders, files = [], []
+            for name in os.listdir(path):
+                if name.startswith("."):
+                    continue
+                full = os.path.join(path, name)
+                try:
+                    if os.path.isdir(full):
+                        folders.append(name)
+                    elif os.path.isfile(full) and name.lower().endswith((".md", ".markdown")):
+                        files.append(name)
+                except Exception:
+                    pass
+            folders.sort(key=lambda s: s.lower())
+            files.sort(key=lambda s: s.lower())
+            return {"folders": folders, "files": files}
+        except Exception as e:
+            return {"error": "读取文件夹失败：%r" % (e,)}
+
+    def open_md_path(self, path):
+        """把指定 .md 渲染成 payload（与双击/打开文件走同一条渲染通道）。"""
+        if not path or not os.path.isfile(path):
+            return {"error": "文件不存在：" + str(path)}
+        try:
+            return make_payload(path)
+        except Exception as e:
+            return {"error": "渲染失败：%r" % (e,)}
+
+    # ---- 编辑模式：把改好的文本写回源文件（必须由用户显式点「保存」触发）----
+    def save_md(self, path, text):
+        """把 text 写回 path。
+
+        安全约定（用户要求的底线：不改则已，改则留痕）：
+          1. 只在这个接口被显式调用时才写盘，预览 / 高亮本身永不自动写；
+          2. 写之前先把原文件复制一份 xxx.md.bak（已有备份则不覆盖，避免把最原始
+             的版本冲掉）；
+          3. 按原文件的编码与换行风格写回（GBK 存 GBK、CRLF 存 CRLF）。
+        返回 {ok, bytes, backup, mtime} 或 {error}。
+        """
+        enc = None
+        try:
+            if not path or not os.path.isfile(path):
+                return {"error": "文件不存在：" + str(path)}
+            if not isinstance(text, str):
+                return {"error": "内容格式不对"}
+            old_text, enc, nl = _read_text_meta(path)
+            if text == old_text:
+                return {"ok": True, "bytes": 0, "backup": "", "unchanged": True}
+            # 统一成原文件的换行风格，避免整篇 diff 全红
+            body = text.replace("\r\n", "\n")
+            if nl == "\r\n":
+                body = body.replace("\n", "\r\n")
+            data = body.encode(enc)
+            backup = _backup_once(path)
+            with open(path, "wb") as f:
+                f.write(data)
+            st = os.stat(path)
+            # 自己刚写的，别让「自动刷新」误判成外部修改又重渲染一遍
+            try:
+                WATCHED[path] = st.st_mtime
+                WATCHED[os.path.abspath(path)] = st.st_mtime
+            except Exception:
+                pass
+            return {"ok": True, "bytes": len(data), "backup": backup or "",
+                    "mtime": st.st_mtime, "encoding": enc}
+        except UnicodeEncodeError as e:
+            return {"error": "原文件是 %s 编码，新内容里有它存不下的字符（%s）。"
+                             "可以先把文件另存为 UTF-8 再编辑。" % (enc or "未知", e.reason)}
+        except PermissionError:
+            return {"error": "文件被占用或设成了只读，写不进去。请关掉占用它的程序，或取消只读属性。"}
+        except Exception as e:
+            return {"error": "保存失败：%r" % (e,)}
+
     def get_config(self):
         return load_config()
 
@@ -590,14 +806,42 @@ class Api:
     _drag_origin = None
 
     def _hwnd(self):
-        """取窗口句柄：先按标题找，失败则取前台窗口（点击时本窗口必为前台）。"""
+        """取主窗口句柄（选择规则见 _own_main_hwnd 的注释）。"""
+        user32 = ctypes.windll.user32
+
+        # 1) pywebview 的 native（WinForms BrowserForm）最可靠
         try:
-            h = ctypes.windll.user32.FindWindowW(None, "PureMD")
-            if h:
-                return h
-            return ctypes.windll.user32.GetForegroundWindow()
+            native = getattr(webview.windows[0], "native", None)
+            if native is not None:
+                h = int(native.Handle.ToInt64())
+                if h and user32.IsWindow(h):
+                    return h
         except Exception:
-            return 0
+            pass
+
+        # 2) 本进程面积最大的顶层窗口
+        h = _own_main_hwnd()
+        if h:
+            return h
+
+        # 3) 兜底：按标题找，但必须属于本进程；否则取本进程的前台窗口
+        try:
+            import ctypes.wintypes as wt
+            mypid = os.getpid()
+            pid = wt.DWORD()
+            h = user32.FindWindowW(None, "PureMD")
+            if h:
+                user32.GetWindowThreadProcessId(h, ctypes.byref(pid))
+                if pid.value == mypid:
+                    return h
+            fg = user32.GetForegroundWindow()
+            if fg:
+                user32.GetWindowThreadProcessId(fg, ctypes.byref(pid))
+                if pid.value == mypid:
+                    return fg
+        except Exception:
+            pass
+        return 0
 
     def window_minimize(self):
         try:
@@ -667,6 +911,10 @@ class Api:
             if not h:
                 Api._drag_origin = None
                 return False
+            # 最大化状态下不让 JS 拖动：先还原再拖更自然，避免窗口跳变
+            if ctypes.windll.user32.IsZoomed(h):
+                Api._drag_origin = None
+                return False
             rect = (ctypes.c_long * 4)()        # 等价于 RECT：left, top, right, bottom
             ctypes.windll.user32.GetWindowRect(h, ctypes.byref(rect))
             Api._drag_origin = (rect[0], rect[1])
@@ -694,6 +942,85 @@ class Api:
             return True
         except Exception:
             return False
+
+    # ---- 自由缩放 ----
+    # 两个坑：
+    #   ① JS 侧的 API 调用是异步的，若在 mousedown 里先 await 取窗口矩形再挂监听，
+    #     这段延迟内的 mousemove 会全部丢失（表现为「第一次拖边缘没反应」）。
+    #   ② pywebview 的几个 API 调用之间也不保证先来后到（各自派发），
+    #     所以不能靠「先调 start 记起点、再调 to 应用位移」两次调用来配合。
+    # 解法：每次拖拽带一个自增的手势号 gid；Python 发现 gid 变了就自己用当前矩形
+    # 作为起点（此刻还没被本手势改过，必然准确），之后只应用「累计位移」。
+    # 累计位移的好处：即使调用排队、丢帧，最后落地的那次一定对应正确的最终几何。
+    _resize_gid = -1
+    _resize_origin = None      # (L, T, R, B) 物理像素
+    _resize_scale = 1.0        # 物理像素 / CSS 像素（兼容 DPI 缩放）
+
+    def window_resize_to(self, gid, edge, dx, dy, css_w=None, css_h=None):
+        """应用「相对拖拽起点的累计位移」（dx/dy 为 CSS 像素）。"""
+        try:
+            h = self._hwnd() or _find_puremd_hwnd()
+            if not h:
+                return False
+            if ctypes.windll.user32.IsZoomed(h):
+                return False
+            try:
+                gid = int(gid)
+            except Exception:
+                gid = Api._resize_gid
+            if gid != Api._resize_gid:
+                # 新手势：记录起点矩形，并按 CSS 宽高反推「每 CSS 像素多少物理像素」
+                rect = (ctypes.c_long * 4)()
+                ctypes.windll.user32.GetWindowRect(h, ctypes.byref(rect))
+                L0, T0, R0, B0 = int(rect[0]), int(rect[1]), int(rect[2]), int(rect[3])
+                Api._resize_origin = (L0, T0, R0, B0)
+                Api._resize_gid = gid
+                k = 1.0
+                try:
+                    cw = float(css_w or 0)
+                    if cw > 10:
+                        k = (R0 - L0) / cw
+                        if not (0.2 < k < 8):
+                            k = 1.0
+                except Exception:
+                    k = 1.0
+                Api._resize_scale = k
+            org = Api._resize_origin
+            if not org:
+                return False
+            k = Api._resize_scale or 1.0
+            DX = int(round(float(dx) * k))
+            DY = int(round(float(dy) * k))
+            L, T, R, B = org
+            edge = str(edge or "")
+            if "w" in edge:
+                L += DX
+            if "e" in edge:
+                R += DX
+            if "n" in edge:
+                T += DY
+            if "s" in edge:
+                B += DY
+            if R - L < _MIN_W:
+                if "w" in edge:
+                    L = R - _MIN_W
+                else:
+                    R = L + _MIN_W
+            if B - T < _MIN_H:
+                if "n" in edge:
+                    T = B - _MIN_H
+                else:
+                    B = T + _MIN_H
+            # 只改位置与尺寸，保持 Z 序：SWP_NOZORDER(0x0004)
+            ctypes.windll.user32.SetWindowPos(
+                h, None, L, T, R - L, B - T, 0x0004)
+            return True
+        except Exception:
+            return False
+
+    def apply_window_features(self):
+        """前端加载完成后调用：补上任务栏最小化所需样式。返回是否成功。"""
+        return bool(enable_window_features())
 
 
 def raise_window():
@@ -777,6 +1104,122 @@ def raise_window():
                 pass
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------- 窗口特性：任务栏最小化 + 自由缩放
+# 根因：frameless=True 时 WinForms 把 Form 设为 FormBorderStyle.None，于是窗口样式里
+#   既没有 WS_MINIMIZEBOX 也没有 WS_SYSMENU，导致「点任务栏图标无法最小化」。
+# 做法（轻量、不子类化 WndProc —— 子类化 WinForms 窗口过程会破坏 WebView2 消息链，风险高）：
+#   · 窗口建好后补上 WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU（任务栏/系统可最小化/最大化），
+#     并补 WS_EX_APPWINDOW 保证任务栏有按钮。这几个位不会在 FormBorderStyle.None 上画可见标题栏，
+#     仅影响 shell 行为，外观仍干净。
+#   · 自由缩放改用 HTML 自绘的 8 个边缘/角手柄（见 hub.html），拖拽时调用 window_get_rect /
+#     window_set_rect，由 Python 用 SetWindowPos 直接改窗口尺寸，完全可控、不依赖系统 NCHITTEST。
+#   · 最小尺寸在 window_set_rect 内强制。
+_user32 = ctypes.windll.user32
+
+GWL_STYLE = -16
+GWL_EXSTYLE = -20
+WS_MINIMIZEBOX = 0x20000    # 任务栏点击可最小化（依赖 WS_SYSMENU）
+WS_MAXIMIZEBOX = 0x10000
+WS_SYSMENU = 0x80000
+WS_EX_APPWINDOW = 0x40000   # 保证任务栏有按钮
+SWP_FRAMECHANGED = 0x0020
+SWP_NOMOVE = 0x0002
+SWP_NOSIZE = 0x0001
+SWP_NOZORDER = 0x0004
+_MIN_W, _MIN_H = 480, 340
+
+
+def _own_main_hwnd():
+    """返回本进程面积最大的顶层窗口（主窗口）。
+
+    必须按「进程 + 面积」挑，不能只按标题：Win11 任务栏缩略图会创建一个
+    Windows.Internal.Shell.TabProxyWindow，标题同样是 "PureMD"（实测 136x39），
+    FindWindowW 会先命中它，后续 SetWindowPos / 样式位就全打到代理窗口上了。
+    """
+    try:
+        import ctypes.wintypes as wt
+        mypid = os.getpid()
+        cand = []
+
+        @ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
+        def _cb(h, _l):
+            pid = wt.DWORD()
+            _user32.GetWindowThreadProcessId(h, ctypes.byref(pid))
+            if pid.value != mypid:
+                return True
+            r = wt.RECT()
+            _user32.GetWindowRect(h, ctypes.byref(r))
+            ww, hh = r.right - r.left, r.bottom - r.top
+            if ww < 200 or hh < 150:
+                return True
+            score = ww * hh
+            cls = ctypes.create_unicode_buffer(256)
+            _user32.GetClassNameW(h, cls, 256)
+            if cls.value.startswith("WindowsForms10"):
+                score += 1 << 40          # 主窗体（WinForms）
+            if _user32.IsWindowVisible(h):
+                score += 1 << 30
+            cand.append((score, h))
+            return True
+
+        _user32.EnumWindows(_cb, 0)
+        if cand:
+            cand.sort()
+            return cand[-1][1]
+    except Exception:
+        pass
+    return 0
+
+
+def _find_puremd_hwnd(retries=60):
+    """等主窗口建好（每次 0.1s，最多 retries 次）；找不到再按标题兜底（需属于本进程）。"""
+    for _ in range(retries):
+        h = _own_main_hwnd()
+        if h:
+            return h
+        time.sleep(0.1)
+    try:
+        import ctypes.wintypes as wt
+        h = _user32.FindWindowW(None, "PureMD")
+        if h:
+            pid = wt.DWORD()
+            _user32.GetWindowThreadProcessId(h, ctypes.byref(pid))
+            if pid.value == os.getpid():
+                return h
+    except Exception:
+        pass
+    return 0
+
+
+def enable_window_features():
+    """给 frameless 窗口补上最小化/最大化框与系统菜单（任务栏最小化所需），不子类化 WndProc。"""
+    try:
+        hwnd = _find_puremd_hwnd()
+        if not hwnd:
+            return False
+        _user32.GetWindowLongPtrW.restype = ctypes.c_int64
+        _user32.GetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        _user32.SetWindowLongPtrW.restype = ctypes.c_int64
+        _user32.SetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int64]
+        _user32.SetWindowPos.restype = ctypes.c_int
+        _user32.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
+                                         ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                         ctypes.c_int, ctypes.c_uint]
+
+        style = _user32.GetWindowLongPtrW(hwnd, GWL_STYLE)
+        _user32.SetWindowLongPtrW(
+            hwnd, GWL_STYLE,
+            style | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU)
+        ex = _user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+        _user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex | WS_EX_APPWINDOW)
+        # 强制重算，让新样式立刻生效
+        _user32.SetWindowPos(hwnd, None, 0, 0, 0, 0,
+                             SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER)
+        return True
+    except Exception:
+        return False
 
 
 def js_inject(payload):
@@ -1059,8 +1502,67 @@ def start_hub(first_payload):
     webview.start(_init_hub, (first_payload, _session_payloads))
 
 
+def _disable_native_zoom(retries=24):
+    """关掉 WebView2 自带的「整页缩放」（Ctrl+滚轮 / Ctrl+加减 / 双指捏合）。
+
+    前端把 Ctrl+滚轮 改成了「只缩放正文」：zoom 只加在每条标签页 iframe 内的
+    <html> 上，父页面（标签栏、工具条、侧栏）一个像素都不缩放。如果内核还保留
+    自己的整页缩放，两套会叠加——界面被放大、正文又被放大一次。这里把内核缩放
+    直接关掉，缩放权完全交给前端 JS。
+
+    必须在 UI 线程访问 CoreWebView2（跨线程读 Settings 会抛
+    InvalidOperationException: "CoreWebView2 can only be accessed from the UI
+    thread"），所以取值和赋值都塞进 Form.Invoke 里做；窗口/内核可能还没就绪，
+    失败就重试几次（调用方在后台线程里跑，不阻塞首屏）。
+    """
+    for _ in range(max(1, retries)):
+        try:
+            import webview
+            from System import Action
+
+            win = webview.windows[0] if webview.windows else None
+            form = getattr(win, "native", None)
+            ctl = getattr(form, "webview", None)
+            if ctl is None:
+                time.sleep(0.15)
+                continue
+            state = {}
+
+            def _apply():
+                try:
+                    core = ctl.CoreWebView2
+                    if core is None:
+                        state["err"] = "core not ready"
+                        return
+                    core.Settings.IsZoomControlEnabled = False
+                    state["ok"] = (core.Settings.IsZoomControlEnabled is False)
+                except Exception as e:
+                    state["err"] = repr(e)
+
+            try:
+                form.Invoke(Action(_apply))
+            except Exception as e:
+                state["err"] = "invoke:" + repr(e)
+            if state.get("ok"):
+                return True
+        except Exception:
+            pass
+        time.sleep(0.15)
+    return False
+
+
 def _init_hub(first_payload, session_payloads=None):
     time.sleep(0.4)
+    # 补上最小化框 + 缩放框，并接管 NCCALCSIZE/NCHITTEST（任务栏最小化、自由缩放）
+    try:
+        enable_window_features()
+    except Exception:
+        pass
+    # 关掉内核整页缩放（后台线程，失败了也不影响使用：前端的 preventDefault 仍在）
+    try:
+        threading.Thread(target=_disable_native_zoom, daemon=True).start()
+    except Exception:
+        pass
     # 先恢复上次会话的标签：与“运行时双击新标签”走同一通道（js_inject →
     # evaluate_js，即 ExecuteScriptAsync），彻底避开 NavigateToString 的 2MB 限制。
     for _p in (session_payloads or []):
@@ -1192,7 +1694,51 @@ def setup_association(silent=False):
         return False, err
 
 
+def _show_version():
+    """只报版本号，不开窗口。控制台版直接打印；窗口版（--noconsole）弹个小框。"""
+    msg = "PureMD %s" % APP_VERSION
+    try:
+        if sys.stdout is not None:
+            sys.stdout.write(msg + "\n")
+            sys.stdout.flush()
+            return
+    except Exception:
+        pass
+    try:
+        ctypes.windll.user32.MessageBoxW(
+            0, msg + "\n\n（程序里点「帮助 → 关于」也能看到版本号）",
+            "PureMD", 0x40)          # MB_ICONINFORMATION
+    except Exception:
+        pass
+
+
 def main():
+    # --version / -v：报版本后直接退出，绝不把它当成文件路径
+    try:
+        _args = sys.argv[1:]
+    except Exception:
+        _args = []
+    if any(a in ("--version", "-v", "/version") for a in _args):
+        _show_version()
+        return
+    if any(a in ("--help", "-h", "/?") for a in _args):
+        text = ("PureMD %s — 只读 .md 预览器\n\n"
+                "用法：PureMD.exe [选项] <文件.md>\n\n"
+                "  --version, -v     显示版本号\n"
+                "  --setup           安装/修复 .md 文件关联\n"
+                "  --selftest        自检（资源、导出）\n" % APP_VERSION)
+        try:
+            if sys.stdout is not None:
+                sys.stdout.write(text)
+                sys.stdout.flush()
+                return
+        except Exception:
+            pass
+        try:
+            ctypes.windll.user32.MessageBoxW(0, text, "PureMD", 0x40)
+        except Exception:
+            pass
+        return
     # --setup：安装/修复 .md 文件关联（便携版发给别人后，对方跑一次即可）
     if len(sys.argv) >= 2 and sys.argv[1] == "--setup":
         ok, text = setup_association()

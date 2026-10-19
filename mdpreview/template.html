@@ -2455,9 +2455,341 @@
 
     function setStatus(m){ statusEl.textContent = m; }
 
+    // ================= 高亮语法 ==文字== =================
+    // 与 Obsidian / Typora / VSCode 等常见编辑器互通：预览里看到的黄色高亮，
+    // 在源文件里就是 ==这两个等号==。其他颜色用行内 HTML <mark style> 承载。
+    (function () {
+      function markRule(state, silent) {
+        var start = state.pos, src = state.src, max = state.posMax;
+        if (start + 1 >= max) return false;
+        if (src.charCodeAt(start) !== 0x3D || src.charCodeAt(start + 1) !== 0x3D) return false;
+        if (start > 0 && src.charCodeAt(start - 1) === 0x5C) return false;   // 前面是反斜杠：转义
+        var pos = start + 2, found = -1;
+        while (pos < max - 1) {
+          if (src.charCodeAt(pos) === 0x0A) return false;                    // 不跨行
+          if (src.charCodeAt(pos) === 0x3D && src.charCodeAt(pos + 1) === 0x3D) { found = pos; break; }
+          pos++;
+        }
+        if (found < 0) return false;
+        var inner = src.slice(start + 2, found);
+        if (!inner || /^\s/.test(inner) || /\s$/.test(inner)) return false;
+        if (!silent) {
+          state.push('pm_mark_open', 'mark', 1);
+          var toks = [];
+          state.md.inline.parse(inner, state.md, state.env, toks);
+          for (var i = 0; i < toks.length; i++) state.tokens.push(toks[i]);
+          state.push('pm_mark_close', 'mark', -1);
+        }
+        state.pos = found + 2;
+        return true;
+      }
+      md.inline.ruler.before('emphasis', 'pm_mark', markRule);
+      md.renderer.rules.pm_mark_open = function () { return '<mark class="pm-hl pm-hl-md">'; };
+      md.renderer.rules.pm_mark_close = function () { return '</mark>'; };
+    })();
+
+    // ================= 块级行号：给顶层块标上它在源文件中的行区间 =================
+    // 有了 data-l="起-止"（0 基、左闭右开），保存时就能只重写被改过的块，
+    // 没动过的块仍然逐字节沿用原文——这是"只改你改的地方"的基础。
+    md.core.ruler.push('pm_line_attr', function (state) {
+      var t = state.tokens;
+      for (var i = 0; i < t.length; i++) {
+        var tk = t[i];
+        if (!tk.map || tk.level !== 0) continue;
+        // 只标"渲染出来必定带属性的元素"；html_block 是原样输出，标了也没用，
+        // 反而会因为没有 data-l 被当成新块而重复写入源文件。
+        if (tk.type === 'html_block') continue;
+        tk.attrSet('data-l', tk.map[0] + '-' + tk.map[1]);
+      }
+    });
+    // fence / code_block 的默认渲染器不输出 token 属性，这里补上 data-l
+    (function () {
+      var FENCE = md.renderer.rules.fence;
+      md.renderer.rules.fence = function (tokens, idx, options, env, slf) {
+        var html = FENCE(tokens, idx, options, env, slf);
+        var l = tokens[idx].attrGet('data-l');
+        return l ? html.replace('<pre', '<pre data-l="' + l + '"') : html;
+      };
+      var CODE = md.renderer.rules.code_block;
+      md.renderer.rules.code_block = function (tokens, idx, options, env, slf) {
+        var html = CODE(tokens, idx, options, env, slf);
+        var l = tokens[idx].attrGet('data-l');
+        return l ? html.replace('<pre', '<pre data-l="' + l + '"') : html;
+      };
+    })();
+
+    // ================= 渲染模型（供保存时对比哪些块被改过） =================
+    var model = [];          // [{el, start, end, snap}]
+    var baseText = '';       // 上次渲染用的源文本
+    function syncModel(text) {
+      baseText = (typeof text === 'string') ? text : baseText;
+      model = [];
+      var kids = content.children;
+      for (var i = 0; i < kids.length; i++) {
+        var el = kids[i], l = el.getAttribute && el.getAttribute('data-l');
+        if (!l) continue;
+        var p = l.split('-');
+        model.push({ el: el, start: parseInt(p[0], 10), end: parseInt(p[1], 10),
+                     snap: el.outerHTML });
+      }
+    }
+
+    // ================= HTML → Markdown（仅用于"被改过的块"） =================
+    var HL_HEX = { y: '#FFD400', r: '#FF6666', g: '#5FB236', b: '#2EA8E5',
+                   v: '#A28AE5', p: '#E56EEE', o: '#F19837', n: '#AAAAAA' };
+
+    function escInline(s) {
+      return String(s)
+        .replace(/\\/g, '\\\\')
+        .replace(/([`*_[\]<>])/g, '\\$1');
+    }
+    // 行首会被误认成 Markdown 语法的字符（#、>、-、1. 等）
+    function escLineStart(s) {
+      return s.replace(/^(\s*)(#{1,6}\s|>|[-+*]\s|\d+[.)]\s)/, function (m, sp, tail) {
+        return sp + '\\' + tail;
+      });
+    }
+    function colorOf(n) {
+      var st = (n.getAttribute('style') || '');
+      var m = st.match(/background(?:-color)?\s*:\s*([^;]+)/i);
+      if (m) return m[1].trim();
+      var c = n.getAttribute('data-c');
+      if (c && HL_HEX[c] && c !== 'y') return HL_HEX[c];
+      return '';
+    }
+    function inlineMD(node) {
+      var out = '', kids = node.childNodes;
+      for (var i = 0; i < kids.length; i++) {
+        var n = kids[i];
+        if (n.nodeType === 3) { out += escInline(n.nodeValue.replace(/\s+/g, ' ')); continue; }
+        if (n.nodeType !== 1) continue;
+        var tag = n.tagName.toLowerCase();
+        if (tag === 'br') { out += '  \n'; continue; }
+        if (tag === 'strong' || tag === 'b') { out += '**' + inlineMD(n) + '**'; continue; }
+        if (tag === 'em' || tag === 'i') { out += '*' + inlineMD(n) + '*'; continue; }
+        if (tag === 'del' || tag === 's' || tag === 'strike') { out += '~~' + inlineMD(n) + '~~'; continue; }
+        if (tag === 'code') { out += '`' + n.textContent + '`'; continue; }
+        if (tag === 'mark') {
+          // data-hid = 只读模式下的本机标注（存在 config.json 里），不属于文档内容：
+          // 保存时只保留文字本身，绝不把它变成 ==文字== 写进源文件。
+          if (n.getAttribute('data-hid')) { out += inlineMD(n); continue; }
+          var inner = inlineMD(n), bg = colorOf(n);
+          if (bg) { out += '<mark style="background-color:' + bg + '">' + inner + '</mark>'; continue; }
+          // ==标记== 的首尾不能是空白，否则再次渲染时认不出来：把空白挪到标记外面
+          var lead = (inner.match(/^\s+/) || [''])[0];
+          var trail = (inner.match(/\s+$/) || [''])[0];
+          var core = inner.slice(lead.length, inner.length - trail.length);
+          out += core ? (lead + '==' + core + '==' + trail) : inner;
+          continue;
+        }
+        if (tag === 'a') {
+          var href = n.getAttribute('href') || '';
+          var txt = inlineMD(n) || escInline(href);
+          out += '[' + txt + '](' + href.replace(/\s/g, '%20') + ')';
+          continue;
+        }
+        if (tag === 'img') {
+          out += '![' + (n.getAttribute('alt') || '') + '](' + (n.getAttribute('src') || '') + ')';
+          continue;
+        }
+        if (tag === 'sub' || tag === 'sup' || tag === 'kbd' || tag === 'input') {
+          out += n.outerHTML;
+          continue;
+        }
+        out += inlineMD(n);       // span / u / font 等：去掉外壳，保留内容
+      }
+      return out;
+    }
+    function mdHeading(el) {
+      var lv = parseInt(el.tagName.charAt(1), 10) || 1;
+      var s = '';
+      for (var i = 0; i < lv; i++) s += '#';
+      return s + ' ' + inlineMD(el).replace(/\s+/g, ' ').trim();
+    }
+    function mdList(el, depth) {
+      var ordered = el.tagName.toLowerCase() === 'ol';
+      var start = parseInt(el.getAttribute('start') || '1', 10);
+      if (isNaN(start) || start < 1) start = 1;
+      var lines = [], n = 0;
+      for (var i = 0; i < el.children.length; i++) {
+        var li = el.children[i];
+        if (li.tagName.toLowerCase() !== 'li') continue;
+        // 任务列表
+        var box = li.querySelector(':scope > input[type=checkbox]');
+        var mark = ordered ? ((start + n) + '. ') : '- ';
+        n++;
+        if (box) mark += (box.checked || box.hasAttribute('checked')) ? '[x] ' : '[ ] ';
+        var inlineParts = [], subs = [];
+        for (var j = 0; j < li.childNodes.length; j++) {
+          var c = li.childNodes[j];
+          if (c.nodeType === 1) {
+            var tg = c.tagName.toLowerCase();
+            if (tg === 'ul' || tg === 'ol') { subs.push(c); continue; }
+            if (tg === 'input' && (c.getAttribute('type') || '') === 'checkbox') continue;
+          }
+          inlineParts.push(c);
+        }
+        var body = '';
+        for (var k = 0; k < inlineParts.length; k++) {
+          var pc = inlineParts[k];
+          if (pc.nodeType === 3) body += escInline(pc.nodeValue.replace(/\s+/g, ' '));
+          else if (pc.nodeType === 1) {
+            var pt = pc.tagName.toLowerCase();
+            if (pt === 'p' || pt === 'div') body += inlineMD(pc).replace(/\s+/g, ' ');
+            else {
+              var wrap = document.createElement('span');
+              wrap.appendChild(pc.cloneNode(true));
+              body += inlineMD(wrap);
+            }
+          }
+        }
+        lines.push(escLineStart(mark + body.trim()));
+        for (var s2 = 0; s2 < subs.length; s2++) {
+          var sub = mdList(subs[s2], (depth || 0) + 1).split('\n');
+          for (var s3 = 0; s3 < sub.length; s3++) lines.push('  ' + sub[s3]);
+        }
+      }
+      return lines.join('\n');
+    }
+    function mdQuote(el) {
+      var inner = [];
+      for (var i = 0; i < el.children.length; i++) inner.push(blockMD(el.children[i]) || '');
+      if (!inner.length) inner.push(inlineMD(el));
+      var out = [];
+      inner.join('\n').split('\n').forEach(function (ln) {
+        out.push(ln ? '> ' + ln : '>');
+      });
+      return out.join('\n');
+    }
+    function mdTable(el) {
+      var rows = [], aligns = [];
+      var trs = el.querySelectorAll('tr');
+      for (var i = 0; i < trs.length; i++) {
+        var cells = [], cs = trs[i].children;
+        for (var j = 0; j < cs.length; j++) {
+          var c = cs[j], tg = c.tagName.toLowerCase();
+          if (tg !== 'th' && tg !== 'td') continue;
+          cells.push(inlineMD(c).replace(/\s+/g, ' ').trim().replace(/\|/g, '\\|'));
+          if (i === 0) {
+            var al = (c.getAttribute('align') || c.style.textAlign || '').toLowerCase();
+            aligns.push(al === 'center' ? ':---:' : al === 'right' ? '---:' : al === 'left' ? ':---' : '---');
+          }
+        }
+        if (cells.length) rows.push(cells);
+      }
+      if (!rows.length) return '';
+      while (aligns.length < rows[0].length) aligns.push('---');
+      var out = ['| ' + rows[0].join(' | ') + ' |',
+                 '| ' + aligns.slice(0, rows[0].length).join(' | ') + ' |'];
+      for (var r = 1; r < rows.length; r++) out.push('| ' + rows[r].join(' | ') + ' |');
+      return out.join('\n');
+    }
+    function blockMD(el) {
+      if (!el || el.nodeType !== 1) return '';
+      var tag = el.tagName.toLowerCase();
+      if (/^h[1-6]$/.test(tag)) return mdHeading(el);
+      if (tag === 'p') return inlineMD(el).replace(/[ \t]+$/gm, '').trim();
+      if (tag === 'ul' || tag === 'ol') return mdList(el, 0);
+      if (tag === 'blockquote') return mdQuote(el);
+      if (tag === 'pre') {
+        var code = el.querySelector('code') || el;
+        var lang = '';
+        var cls = (code.className || '') + ' ' + (el.className || '');
+        var lm = cls.match(/language-([\w+#.-]+)/);
+        if (lm) lang = lm[1];
+        var body = code.textContent.replace(/\n+$/, '');
+        return '```' + lang + '\n' + body + '\n```';
+      }
+      if (tag === 'hr') return '---';
+      if (tag === 'table') return mdTable(el);
+      if (tag === 'div') {
+        // 渲染器偶尔会把内容包进 div（如 markdown-alert），逐块递归
+        var parts = [];
+        for (var i = 0; i < el.children.length; i++) {
+          var sub = blockMD(el.children[i]);
+          if (sub) parts.push(sub);
+        }
+        if (parts.length) return parts.join('\n\n');
+        var t = inlineMD(el).trim();
+        return t;
+      }
+      if (tag === 'br') return '';
+      // 其余（含用户粘进来的裸 HTML）：原样保留标签
+      return el.outerHTML;
+    }
+
+    // 把当前 DOM 拼回 Markdown：未改动的块沿用原文，只重写被改过的块
+    function buildText() {
+      // 统一按 \n 切行（源文件可能是 CRLF，行号来自 markdown-it 的 \n 切分，一致）；
+      // 写回时由 Python 侧按原文件的换行风格还原。
+      var lines = baseText.split(/\r?\n/);
+      var items = model.slice().sort(function (a, b) { return a.start - b.start; });
+      var out = [], cursor = 0;
+      var extras = [];     // 没有 data-l 的新块（用户新敲出来的段落）
+      var withL = [];
+      for (var i = 0; i < content.children.length; i++) {
+        var el = content.children[i];
+        if (el.getAttribute && el.getAttribute('data-l')) withL.push(el);
+        else extras.push(el);
+      }
+      // 新块归到它后面那个有行号的块前面（没有就放末尾）
+      function extrasBefore(el) {
+        var take = [];
+        for (var k = 0; k < extras.length; k++) {
+          if (extras[k].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) {
+            take.push(extras[k]);
+          }
+        }
+        extras = extras.filter(function (x) { return take.indexOf(x) < 0; });
+        return take;
+      }
+      function emitExtras(list) {
+        for (var k = 0; k < list.length; k++) {
+          var s = blockMD(list[k]);
+          if (s.trim()) { out.push(''); out.push(s); }
+        }
+      }
+      for (var j = 0; j < items.length; j++) {
+        var it = items[j];
+        emitExtras(extrasBefore(it.el));
+        var alive = it.el.parentNode === content;
+        if (it.start < cursor) continue;                    // 行区间重叠，跳过
+        for (var ln = cursor; ln < it.start && ln < lines.length; ln++) out.push(lines[ln]);
+        if (alive) {
+          var same = (it.el.outerHTML === it.snap);
+          var seg = same ? lines.slice(it.start, it.end).join('\n') : blockMD(it.el);
+          if (seg !== '') out.push(seg);
+        }   // 元素被删掉 → 这段源文本一并删除（用户就是把它删了）
+        cursor = Math.max(cursor, it.end);
+      }
+      emitExtras(extras);
+      for (var tail = cursor; tail < lines.length; tail++) out.push(lines[tail]);
+      return out.join('\n');
+    }
+
+    // 对外暴露（宿主 hub.html 用）
+    window.__pm = {
+      content: content,
+      render: render,
+      baseText: function () { return baseText; },
+      model: function () { return model; },
+      blockMD: blockMD,
+      buildText: buildText,
+      dirtyCount: function () {
+        var n = 0;
+        for (var i = 0; i < model.length; i++) {
+          var it = model[i];
+          if (it.el.parentNode === content && it.el.outerHTML !== it.snap) n++;
+          else if (it.el.parentNode !== content) n++;
+        }
+        return n;
+      }
+    };
+
     function render(text){
       hint.style.display = 'none';
       content.innerHTML = md.render(text);
+      syncModel(text);
       if (current && current.dirHandle) resolveImages();
     }
 

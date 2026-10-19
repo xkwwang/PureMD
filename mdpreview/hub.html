@@ -163,8 +163,125 @@
     height: 100%; color: #6e7781; font-size: 14px;
   }
   body.dark .empty { color: #8b949e; }
+  /* ===== 标签栏下面一行：动作条 =====
+     左：侧栏开关 + 文件/大纲/高亮（侧栏打开时才出现）；中：编辑 / 高亮；右：主题 + 字号 */
+  #actbar {
+    position: relative;
+    display: flex; align-items: center;
+    gap: 6px; padding: 4px 8px 5px;
+    border-top: 1px solid #e6eaef;
+    flex: 0 0 auto;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-user-select: none; user-select: none;
+    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+  }
+  #actbar::-webkit-scrollbar { height: 0; }
+  body.dark #actbar { border-top-color: #21262d; }
+  body.beige #actbar { border-top-color: #ded1b2; }
+  #actbar .ab-left { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+  #actbar .ab-right { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; margin-left: auto; }
+  /* 侧栏的三个页签：跟开关图标同一行，侧栏收起时整组隐藏 */
+  #actbar .ab-tabs {
+    display: none; align-items: center; gap: 2px;
+    background: #eaeef2; border-radius: 6px; padding: 2px;
+    flex: 0 0 auto;
+  }
+  body.sb-open #actbar .ab-tabs { display: flex; }
+  #actbar .ab-tab {
+    border: 0; background: transparent; color: #57606a;
+    font-size: 12px; line-height: 1; padding: 4px 10px; border-radius: 4px;
+    cursor: pointer; white-space: nowrap;
+    font-family: inherit;
+    transition: background .12s ease, color .12s ease;
+  }
+  #actbar .ab-tab:hover { color: #24292f; }
+  #actbar .ab-tab.active { background: #fff; color: #24292f; font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, .10); }
+  body.dark #actbar .ab-tabs { background: #21262d; }
+  body.dark #actbar .ab-tab { color: #8b949e; }
+  body.dark #actbar .ab-tab:hover { color: #c9d1d9; }
+  body.dark #actbar .ab-tab.active { background: #30363d; color: #c9d1d9; }
+  body.beige #actbar .ab-tabs { background: #e6dcc3; }
+  body.beige #actbar .ab-tab { color: #6b5c46; }
+  body.beige #actbar .ab-tab:hover { color: #4a3b28; }
+  body.beige #actbar .ab-tab.active { background: #f7f0dd; color: #4a3b28; }
+  /* 字号百分比：点击回到 100% */
+  #actbar .ab-zoom {
+    font-size: 11px; line-height: 1; min-width: 36px; text-align: center;
+    color: #57606a; font-variant-numeric: tabular-nums; cursor: pointer;
+    padding: 6px 2px; border-radius: 5px;
+  }
+  #actbar .ab-zoom:hover { background: #eef1f4; color: #24292f; }
+  body.dark #actbar .ab-zoom { color: #8b949e; }
+  body.dark #actbar .ab-zoom:hover { background: #21262d; color: #c9d1d9; }
+  body.beige #actbar .ab-zoom { color: #6b5c46; }
+  body.beige #actbar .ab-zoom:hover { background: #e6dcc3; color: #4a3b28; }
+  #actbar .ab-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    height: 25px; padding: 0 9px;
+    border: 1px solid transparent; border-radius: 6px;
+    background: transparent; color: #24292f;
+    font-size: 12px; line-height: 1; white-space: nowrap; cursor: pointer;
+    transition: background .12s ease, box-shadow .12s ease, border-color .12s ease;
+  }
+  #actbar .ab-btn:hover {
+    background: #fff; border-color: #d0d7de;
+    box-shadow: 0 1px 4px rgba(31, 35, 40, .12);
+  }
+  #actbar .ab-btn:active { box-shadow: inset 0 0 0 1px rgba(31, 35, 40, .10); }
+  #actbar .ab-btn.on { background: #eaf3fd; border-color: #b6d7fb; color: #0969da; }
+  #actbar .ab-btn.icon { width: 27px; padding: 0; color: #57606a; }
+  #actbar .ab-btn.icon.on { background: #e7edf4; border-color: #cfd8e3; color: #0969da; }
+  #actbar .ab-btn.editing {
+    background: #0969da; border-color: #0969da; color: #fff;
+    box-shadow: 0 1px 4px rgba(9, 105, 218, .35);
+  }
+  #actbar .ab-btn.editing:hover { background: #0860c4; border-color: #0860c4; }
+  #actbar .ab-btn.primary {
+    background: #1f883d; border-color: #1f883d; color: #fff; font-weight: 600;
+  }
+  #actbar .ab-btn.primary:hover { background: #1a7f37; border-color: #1a7f37; }
+  #actbar .ab-btn:disabled { cursor: default; opacity: .5; box-shadow: none; }
+  #actbar .ab-btn:disabled:hover { background: transparent; border-color: transparent; }
+  /* 侧栏开关紧跟在最左边，和「文件/大纲/高亮」同一行 */
+  #actbar #sbToggleBtn { flex: 0 0 auto; }
+  #actbar .ab-sep { width: 1px; height: 15px; background: #d8dee4; margin: 0 2px; }
+  body.dark #actbar .ab-sep { background: #30363d; }
+  body.beige #actbar .ab-sep { background: #d8cba8; }
+  /* 高亮当前颜色小方块 */
+  #actbar .hl-chip {
+    width: 11px; height: 11px; border-radius: 3px;
+    box-shadow: 0 0 0 1px rgba(31, 35, 40, .22);
+    display: inline-block; background: #ffd400;
+  }
+  #actbar .hl-caret { font-size: 8px; opacity: .55; margin-left: -2px; position: relative; top: 1px; }
+  body.dark #actbar .ab-btn { color: #c9d1d9; }
+  body.dark #actbar .ab-btn:hover { background: #21262d; border-color: #30363d; }
+  body.dark #actbar .ab-btn.on { background: #12283f; border-color: #1f4b7a; color: #79c0ff; }
+  body.dark #actbar .ab-btn.icon { color: #8b949e; }
+  body.dark #actbar .ab-btn.icon.on { color: #58a6ff; }
+  body.dark #actbar .ab-btn.editing { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  body.dark #actbar .ab-btn.primary { background: #238636; border-color: #238636; color: #fff; }
+  body.beige #actbar .ab-btn { color: #4a3b28; }
+  body.beige #actbar .ab-btn:hover { background: #e6dcc3; border-color: #d8cba8; }
+  body.beige #actbar .ab-btn.on { background: #e2d3a8; border-color: #c9b583; color: #7a5a1e; }
+  body.beige #actbar .ab-btn.icon { color: #6b5c46; }
+  body.beige #actbar .ab-btn.icon.on { color: #8a6b1f; }
+  body.beige #actbar .ab-btn.editing { background: #8c7b52; border-color: #8c7b52; color: #fff8e7; }
+  body.beige #actbar .ab-btn.primary { background: #5f7a4a; border-color: #5f7a4a; color: #fff; }
+  /* 高亮颜色选择浮层 */
+  #hlPick {
+    position: fixed; z-index: 950; display: none;
+    background: #fff; border: 1px solid #d0d7de; border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(31, 35, 40, .18); padding: 8px 9px;
+  }
+  body.dark #hlPick { background: #161b22; border-color: #30363d; box-shadow: 0 6px 20px rgba(0, 0, 0, .6); }
+  body.beige #hlPick { background: #f4ecd8; border-color: #d8cba8; }
+  #hlPick .hl-row { display: flex; gap: 7px; }
+  #hlPick .hl-sw { width: 18px; height: 18px; }
   /* 顶部 chrome：第一行 = 自绘标题栏（PureMD 文字 + 工具栏 + 窗口控制），第二行 = 标签栏 */
   #chrome {
+    position: relative;
     display: flex; flex-direction: column;
     background: #f6f8fa;
     border-bottom: 1px solid #d0d7de; flex: 0 0 auto;
@@ -270,7 +387,30 @@
     box-shadow: 0 -3px 8px rgba(74,59,40,0.12), 0 6px 16px rgba(74,59,40,0.28), 0 2px 6px rgba(74,59,40,0.20);
   }
   #topbar label { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; position: relative; top: 1.5px; }
+  /* 编辑模式：按钮变蓝；「保存」是绿色的主操作；未保存时标签上挂一个红点 */
+  #topbar button.toolbtn.editing {
+    background: #0969da; border-color: #0969da; border-bottom-color: #0969da; color: #fff;
+    box-shadow: 0 1px 4px rgba(9,105,218,.35);
+  }
+  body.dark #topbar button.toolbtn.editing { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  body.beige #topbar button.toolbtn.editing { background: #8c7b52; border-color: #8c7b52; color: #fff8e7; }
+  #topbar button.toolbtn.primary {
+    background: #1f883d; border-color: #1f883d; border-bottom-color: #1f883d; color: #fff; font-weight: 600;
+  }
+  #topbar button.toolbtn.primary:hover { background: #1a7f37; border-color: #1a7f37; }
+  body.dark #topbar button.toolbtn.primary { background: #238636; border-color: #238636; color: #fff; }
+  body.beige #topbar button.toolbtn.primary { background: #5f7a4a; border-color: #5f7a4a; color: #fff; }
+  #topbar button.toolbtn:disabled { cursor: default; }
+  .tab .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: #d1242f;
+    display: inline-block; margin-left: 5px; flex: 0 0 auto;
+  }
   #status { flex: 0 0 auto; margin-left: auto; color: #6e7781; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+  /* 窗口变窄时先把状态文字让出来，保证右侧的最小化/关闭按钮不被挤出屏幕 */
+  @media (max-width: 900px) {
+    #status { display: none; }
+    #topbar button.toolbtn { padding: 6px 7px 2px; }
+  }
   body.dark #status { color: #8b949e; }
   body.beige #status { color: #6b5c46; }
   /* 米色（经典纸感 Sepia）：底 #f4ecd8 + 暖棕字 #4a3b28，对比度 9.16:1，落在 7–12:1 阅读舒适区 */
@@ -341,6 +481,22 @@
     body:not(.light):not(.beige) #topbar button.toolbtn { background: #161b22; color: #c9d1d9; border-color: transparent; }
     body:not(.light):not(.beige) #topbar button.toolbtn:hover { background: #21262d; border-color: #30363d; border-bottom-color: #30363d; box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.04); }
     body:not(.light):not(.beige) #topbar button.toolbtn:active, body:not(.light):not(.beige) #topbar button.toolbtn.on { background: #21262d; border-bottom-color: #c9d1d9; box-shadow: 0 0 0 1px rgba(255,255,255,0.16), 0 4px 12px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.5); }
+    body:not(.light):not(.beige) #actbar { border-top-color: #21262d; }
+    body:not(.light):not(.beige) #actbar .ab-btn { color: #c9d1d9; }
+    body:not(.light):not(.beige) #actbar .ab-btn:hover { background: #21262d; border-color: #30363d; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+    body:not(.light):not(.beige) #actbar .ab-btn.on { background: #12283f; border-color: #1f4b7a; color: #79c0ff; }
+    body:not(.light):not(.beige) #actbar .ab-btn.icon { color: #8b949e; }
+    body:not(.light):not(.beige) #actbar .ab-btn.icon.on { color: #58a6ff; }
+    body:not(.light):not(.beige) #actbar .ab-btn.editing { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+    body:not(.light):not(.beige) #actbar .ab-btn.primary { background: #238636; border-color: #238636; color: #fff; }
+    body:not(.light):not(.beige) #actbar .ab-sep { background: #30363d; }
+    body:not(.light):not(.beige) #actbar .ab-tabs { background: #21262d; }
+    body:not(.light):not(.beige) #actbar .ab-tab { color: #8b949e; }
+    body:not(.light):not(.beige) #actbar .ab-tab:hover { color: #c9d1d9; }
+    body:not(.light):not(.beige) #actbar .ab-tab.active { background: #30363d; color: #c9d1d9; }
+    body:not(.light):not(.beige) #actbar .ab-zoom { color: #8b949e; }
+    body:not(.light):not(.beige) #actbar .ab-zoom:hover { background: #21262d; color: #c9d1d9; }
+    body:not(.light):not(.beige) #hlPick { background: #161b22; border-color: #30363d; box-shadow: 0 6px 20px rgba(0,0,0,.6); }
     body:not(.light):not(.beige) #tablist { background: #161b22; border-color: #30363d; }
     body:not(.light):not(.beige) #tablist .li:hover,
     body:not(.light):not(.beige) #tablist .li.active { background: #30363d; }
@@ -410,6 +566,281 @@
   }
   body.dark #fbModal .box button, body.dark #aboutModal .box button, body.dark #updateModal .box button { background: #21262d; color: #c9d1d9; border-color: #30363d; }
   body.beige #fbModal .box button, body.beige #aboutModal .box button, body.beige #updateModal .box button { background: #e6dcc3; color: #4a3b28; border-color: #d8cba8; }
+  /* 通用确认弹窗（保存 / 放弃 / 取消） */
+  #cfmModal {
+    position: fixed; inset: 0; z-index: 220; display: none;
+    align-items: center; justify-content: center; background: rgba(0, 0, 0, .35);
+  }
+  #cfmModal .box {
+    background: #fff; color: #24292f; border-radius: 12px;
+    padding: 20px 22px 16px; width: 360px; max-width: 90vw;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+  }
+  body.dark #cfmModal .box { background: #161b22; color: #c9d1d9; }
+  body.beige #cfmModal .box { background: #f4ecd8; color: #4a3b28; }
+  #cfmModal h3 { margin: 0 0 8px; font-size: 15px; }
+  #cfmModal p { margin: 0 0 16px; font-size: 12.5px; line-height: 1.65; color: #57606a; }
+  body.dark #cfmModal p { color: #8b949e; }
+  body.beige #cfmModal p { color: #6b5c46; }
+  #cfmBtns { display: flex; gap: 8px; justify-content: flex-end; }
+  #cfmBtns button {
+    border: 1px solid #d0d7de; background: #fff; color: #24292f;
+    border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 13px;
+  }
+  #cfmBtns button:hover { background: #f6f8fa; }
+  #cfmBtns button.primary { background: #1f883d; border-color: #1f883d; color: #fff; font-weight: 600; }
+  #cfmBtns button.primary:hover { background: #1a7f37; }
+  body.dark #cfmBtns button { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+  body.dark #cfmBtns button.primary { background: #238636; border-color: #238636; color: #fff; }
+  body.beige #cfmBtns button { background: #e6dcc3; color: #4a3b28; border-color: #d8cba8; }
+  body.beige #cfmBtns button.primary { background: #5f7a4a; border-color: #5f7a4a; color: #fff; }
+
+  /* 左侧文件夹侧栏 */
+  #main { flex: 1 1 auto; display: flex; min-height: 0; min-width: 0; }  #sidebar {
+    position: relative;
+    flex: 0 0 auto; width: 240px; min-width: 140px; max-width: 70vw;
+    display: none; flex-direction: column;
+    background: #f6f8fa; border-right: 1px solid #d0d7de; overflow: hidden;
+  }
+  #sidebar.show { display: flex; }
+  body.dark #sidebar { background: #161b22; border-right-color: #30363d; }
+  body.beige #sidebar { background: #ede3cc; border-right-color: #d8cba8; }
+  #sidebar .sb-head {
+    display: flex; align-items: center; gap: 6px; padding: 6px 8px; flex: 0 0 auto;
+    border-bottom: 1px solid #d0d7de;
+  }
+  body.dark #sidebar .sb-head { border-bottom-color: #30363d; }
+  body.beige #sidebar .sb-head { border-bottom-color: #d8cba8; }
+  #sidebar .sb-btns { display: flex; gap: 4px; margin-left: auto; }
+  #sidebar .sb-btn {
+    border: 1px solid #d0d7de; background: #fff; color: #24292f; border-radius: 6px;
+    font-size: 11px; padding: 3px 7px; cursor: pointer; white-space: nowrap;
+  }
+  #sidebar .sb-btn:hover { background: #f3f4f6; }
+  body.dark #sidebar .sb-btn { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+  body.dark #sidebar .sb-btn:hover { background: #30363d; }
+  body.beige #sidebar .sb-btn { background: #e6dcc3; color: #4a3b28; border-color: #d8cba8; }
+  body.beige #sidebar .sb-btn:hover { background: #ded2b3; }
+  #sidebar .sb-path {
+    font-size: 11px; color: #6e7781; padding: 4px 8px 2px; flex: 0 0 auto;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  body.dark #sidebar .sb-path { color: #8b949e; }
+  body.beige #sidebar .sb-path { color: #6b5c46; }
+  #sidebar .sb-tree { flex: 1 1 auto; overflow: auto; padding: 4px 0 8px; scrollbar-width: thin; }
+  .sb-row {
+    display: flex; align-items: center; gap: 4px; padding: 3px 8px; cursor: pointer;
+    font-size: 13px; white-space: nowrap; overflow: hidden;
+  }
+  .sb-row:hover { background: #eaeef2; }
+  body.dark .sb-row:hover { background: #30363d; }
+  body.beige .sb-row:hover { background: #e0d5b8; }
+  .sb-row.file .sb-name { color: #24292f; }
+  body.dark .sb-row.file .sb-name { color: #c9d1d9; }
+  body.beige .sb-row.file .sb-name { color: #4a3b28; }
+  /* 当前打开的文件：在文件树里高亮出来（打开文件时自动定位用） */
+  .sb-row.file.active { background: #ddf4ff; }
+  .sb-row.file.active .sb-name { color: #0969da; font-weight: 600; }
+  body.dark .sb-row.file.active { background: #1f3a5f; }
+  body.dark .sb-row.file.active .sb-name { color: #79c0ff; }
+  body.beige .sb-row.file.active { background: #e8dcb8; }
+  body.beige .sb-row.file.active .sb-name { color: #7a5a1e; }
+  .sb-row.folder .sb-name { color: #57606a; font-weight: 500; }
+  body.dark .sb-row.folder .sb-name { color: #8b949e; }
+  body.beige .sb-row.folder .sb-name { color: #6b5c46; }
+  /* 展开/折叠箭头：SVG chevron 经 mask 上色（可随主题变色），比 ▸/▾ 字符更大更锐利 */
+  .sb-caret {
+    flex: 0 0 auto; width: 15px; height: 17px;
+    display: flex; align-items: center; justify-content: center; color: #6e7781;
+  }
+  body.dark .sb-caret { color: #8b949e; }
+  body.beige .sb-caret { color: #8a7a5e; }
+  .sb-caret::before {
+    content: ""; width: 13px; height: 13px; background-color: currentColor;
+    -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M5.8 3.2 L10.8 8 L5.8 12.8' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    -webkit-mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat;
+    mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M5.8 3.2 L10.8 8 L5.8 12.8' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    mask-size: contain; mask-position: center; mask-repeat: no-repeat;
+    transition: transform .12s ease;
+  }
+  .sb-caret.open::before { transform: rotate(90deg); }
+  .sb-caret.sp::before { display: none; }
+  .sb-ico { flex: 0 0 auto; font-size: 12px; }
+  .sb-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .sb-err { color: #cf222e; font-size: 12px; padding: 6px 10px; }
+  body.dark .sb-err { color: #f85149; }
+
+  /* ---- 侧栏宽度拖拽条：贴在侧栏右边缘外侧（净占宽 0，不挡树里的滚动条） ---- */
+  #sbResizer {
+    flex: 0 0 8px; width: 8px; margin-right: -8px; align-self: stretch;
+    display: none; position: relative; z-index: 9999; cursor: col-resize;
+  }
+  #sidebar.show + #sbResizer { display: block; }
+  #sbResizer::before {
+    content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 2px;
+    background: transparent; transition: background .12s;
+  }
+  #sbResizer:hover::before, body.sb-resizing #sbResizer::before { background: #0969da; }
+  body.dark #sbResizer:hover::before, body.dark.sb-resizing #sbResizer::before { background: #58a6ff; }
+  body.beige #sbResizer:hover::before, body.beige.sb-resizing #sbResizer::before { background: #8a6b1f; }
+  body.sb-resizing { cursor: col-resize; user-select: none; }
+  /* 拖拽期间的鼠标事件由 #dragshield 接管（见下方说明），不再屏蔽 iframe */
+  #views { position: relative; z-index: 0; }
+
+  /* ---- 侧栏里的 .md 文件使用 PureMD 的 M 图标（48px PNG 内嵌，仅 848 字节） ---- */
+  .sb-ico-file {
+    flex: 0 0 auto; width: 14px; height: 14px;
+    background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAADAElEQVR42u2ay2sTQRzHvzO7G2vSJI1Ri0q1ICZplYJIkr32D6gi+j94U1REfN18IF6kN8Gjt7YU9Q/wlBJbxReNJmlPosWi2MZgStJkPJQ8NrtmH5lNNtUfDIR9wPczv9fsTID/1l0jRh6Sb+dZtwQmb/YTywDxO7+YU2b65Q0vMQwQu+sc4c02f10JogKI3ssxp8f9wjVfTbfYfJMR1rtJfOL+es+of33VT1Qe6LXZV3jg+IOfPaf+zZUAqXmgYnD2314OcBfy+du65vWJJxXdd2k9fPSHHeIBYGjQr3ldT48SgLKW492lgK3hoAWhp6nJA6zl6IQ1Q3y4GJT1NFEz7uoGhJ4msZ0S+uJ9Eecmc4progC8mgzCvUNJnS8wRC/8QLkpLx+d92F8zKWCqCa2ni7uIbRZBubTJfViLF1SiTfiCRMhxC8HEik1wNzHkqWQ0tMkNsZaOyZQ1GY4kSoC8CgBUkXNZ/UB0JkQ8roJDu0VAABLX8tYXasrXF2rYHmlDAAYHhTgdRNuHqCNnbjVMGLxiKQZRnMNv+WGZ4yYniauZVRWABQb4r9oGcDWMqryQFhSzDpjACHKBI6bBmitiyvAHj/F4X0CllfK+J6rIPNlEwIltXw4sl9A0EttAqDgYnJEqiVsIlWCKDTcG3GZL6MUnW1kikReLCkTOCzZ2Qf4LNjiYQmEAIwBC9m6BygBYhYBOuqBQD9F6MDWvGwUGfKFrXcjQyL8HsLdA7asRrVKpdnyabSMcm1krUqlVQA9TaIdOxKxkARKgAqrr32iIcnyYo7LN7EZ87kJRg7Wd2yODYvw9BFbQqgtD4yPuZB5vFvz3uytgb/vbz4MOrMT22H/EgAcCgCjayGHeoBy6sTBqaXObtoSInPtxIwAu6aXOio+MJVNGi6jRrvtwEwW62dDst0Q/ulMsgJm7oDDN5PumS323JnwNjvgqFr/7CfHU+RPR7bpIV/V3E9TjqX4fWqUGD6p3/nMOSCFk6PE8n8l+p4vdg1kY+IowXa2P3zpfDtYRzRpAAAAAElFTkSuQmCC");
+    background-repeat: no-repeat; background-position: center; background-size: contain;
+  }
+
+  /* 「文件 / 大纲 / 高亮」三个页签已挪到动作条（见 #actbar .ab-tabs） */
+
+  /* 标题大纲 */
+  #sidebar .sb-toc { flex: 1 1 auto; overflow: auto; padding: 6px 0 12px; scrollbar-width: thin; }
+  .toc-item {
+    padding: 3px 8px 3px 0; cursor: pointer; font-size: 12.5px; line-height: 1.5;
+    color: #24292f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    border-left: 2px solid transparent;
+  }
+  .toc-item:hover { background: #eaeef2; }
+  .toc-item.active { color: #0969da; border-left-color: #0969da; background: #ddf4ff; }
+  .toc-lv1 { font-weight: 600; font-size: 13px; }
+  .toc-lv2 { font-weight: 500; }
+  .toc-lv3, .toc-lv4, .toc-lv5, .toc-lv6 { color: #57606a; }
+  body.dark .toc-item { color: #c9d1d9; }
+  body.dark .toc-item:hover { background: #30363d; }
+  body.dark .toc-item.active { color: #58a6ff; border-left-color: #58a6ff; background: #0d2d4b; }
+  body.dark .toc-lv3, body.dark .toc-lv4, body.dark .toc-lv5, body.dark .toc-lv6 { color: #8b949e; }
+  body.beige .toc-item { color: #4a3b28; }
+  body.beige .toc-item:hover { background: #e0d5b8; }
+  body.beige .toc-item.active { color: #8a6b1f; border-left-color: #8a6b1f; background: #f3e8c8; }
+  body.beige .toc-lv3, body.beige .toc-lv4, body.beige .toc-lv5, body.beige .toc-lv6 { color: #6b5c46; }
+
+  /* ---- 自由缩放手柄：8 个边缘/角，覆盖在窗口四周，拖拽即改窗口尺寸 ----
+     必须用 fixed 直接贴视口四边；挂在 #chrome（仅标题栏高度）里用 absolute
+     会让下/右/角手柄全部缩到标题栏范围内，窗口真四角点不到。 */
+  .rg { position: fixed; z-index: 9999; background: transparent; }
+  .rg-n  { top: 0;    left: 0; right: 0;  height: 6px;  cursor: ns-resize; }
+  .rg-s  { bottom: 0; left: 0; right: 0;  height: 6px;  cursor: ns-resize; }
+  .rg-w  { top: 0; bottom: 0; left: 0;   width: 6px;    cursor: ew-resize; }
+  .rg-e  { top: 0; bottom: 0; right: 0;  width: 6px;    cursor: ew-resize; }
+  .rg-ne { top: 0;    right: 0;   width: 14px; height: 14px; cursor: nesw-resize; z-index: 10000; }
+  .rg-nw { top: 0;    left: 0;    width: 14px; height: 14px; cursor: nwse-resize; z-index: 10000; }
+  .rg-se { bottom: 0; right: 0;   width: 14px; height: 14px; cursor: nwse-resize; z-index: 10000; }
+  .rg-sw { bottom: 0; left: 0;    width: 14px; height: 14px; cursor: nesw-resize; z-index: 10000; }
+  /* 缩放时整窗禁止选中文字，避免拖拽误选 */
+  body.resizing, body.resizing * { user-select: none !important; }
+  /* 拖拽期间接住鼠标事件的透明遮罩。
+     以前用 `body.resizing #views iframe { pointer-events:none }` 让 mousemove 回到父页，
+     但 Chromium 的合成器会把被屏蔽的 iframe 从滚轮命中树里摘掉，恢复 auto 后滚轮仍然
+     失灵（只能靠布局变化重建命中树）——这是「拖过侧栏/窗口后正文滚不动」的真正原因。
+     改成盖一层遮罩：iframe 的 pointer-events 全程保持 auto，命中树不受影响。 */
+  #dragshield {
+    position: fixed; inset: 0; z-index: 9998; display: none;
+    background: transparent;
+  }
+
+  /* ---- 高亮标注：浮动工具条 / 编辑气泡 ---- */
+  #hlPop {
+    position: fixed; z-index: 900; display: none; width: 264px;
+    background: #fff; color: #24292f; border: 1px solid #d0d7de; border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(31, 35, 40, .18); padding: 9px 10px 10px;
+    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+  }
+  body.dark #hlPop { background: #161b22; color: #c9d1d9; border-color: #30363d; box-shadow: 0 8px 28px rgba(0, 0, 0, .6); }
+  body.beige #hlPop { background: #f4ecd8; color: #4a3b28; border-color: #d8cba8; box-shadow: 0 8px 28px rgba(74, 59, 40, .22); }
+  #hlPop .hl-row1 { display: flex; align-items: center; gap: 8px; }
+  #hlPop .hl-label { font-size: 11.5px; color: #6e7781; white-space: nowrap; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+  body.dark #hlPop .hl-label { color: #8b949e; }
+  body.beige #hlPop .hl-label { color: #6b5c46; }
+  #hlPop .hl-swatches { display: flex; gap: 6px; margin-left: auto; }
+  .hl-sw {
+    width: 16px; height: 16px; border-radius: 3px; border: 0;
+    box-shadow: 0 0 0 1px rgba(31, 35, 40, .16); cursor: pointer; padding: 0;
+    transition: transform .1s ease, box-shadow .1s ease;
+  }
+  .hl-sw.y { background: #ffd400; }
+  .hl-sw.r { background: #ff6666; }
+  .hl-sw.g { background: #5fb236; }
+  .hl-sw.b { background: #2ea8e5; }
+  .hl-sw.v { background: #a28ae5; }
+  .hl-sw.p { background: #e56eee; }
+  .hl-sw.o { background: #f19837; }
+  .hl-sw.n { background: #aaaaaa; }
+  .hl-sw:hover { transform: scale(1.15); }
+  .hl-sw.active { box-shadow: 0 0 0 2px #0969da, 0 0 0 3px #fff; transform: scale(1.12); }
+  body.dark .hl-sw.active { box-shadow: 0 0 0 2px #58a6ff, 0 0 0 3px #161b22; }
+  body.beige .hl-sw.active { box-shadow: 0 0 0 2px #8a6b1f, 0 0 0 3px #f4ecd8; }
+  #hlPop .hl-note {
+    width: 100%; box-sizing: border-box; margin-top: 9px; height: 54px; resize: vertical;
+    font: 12px/1.55 "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+    border: 1px solid #d0d7de; border-radius: 6px; padding: 5px 7px;
+    background: #fff; color: #24292f; outline: none;
+  }
+  #hlPop .hl-note:focus { border-color: #0969da; box-shadow: 0 0 0 2px rgba(9, 105, 218, .14); }
+  body.dark #hlPop .hl-note { background: #0d1117; color: #c9d1d9; border-color: #30363d; }
+  body.beige #hlPop .hl-note { background: #fffaf0; color: #4a3b28; border-color: #d8cba8; }
+  #hlPop .hl-acts { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+  #hlPop .hl-acts button {
+    border: 1px solid #d0d7de; background: #fff; color: #24292f; border-radius: 6px;
+    font-size: 11.5px; padding: 4px 9px; cursor: pointer;
+  }
+  body.dark #hlPop .hl-acts button { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+  body.beige #hlPop .hl-acts button { background: #e6dcc3; color: #4a3b28; border-color: #d8cba8; }
+  #hlPop .hl-acts .hl-del { color: #cf222e; border-color: #f0b6b6; }
+  body.dark #hlPop .hl-acts .hl-del { color: #ff7b72; border-color: #5a2a2a; }
+  #hlPop .hl-acts .hl-hint { margin-left: auto; font-size: 10.5px; color: #8c959f; }
+  body.dark #hlPop .hl-acts .hl-hint { color: #6e7681; }
+  body.beige #hlPop .hl-acts .hl-hint { color: #8a7a5e; }
+
+  /* ---- 侧栏高亮列表 ---- */
+  #sidebar .sb-hl { flex: 1 1 auto; overflow: auto; padding: 6px 0 12px; scrollbar-width: thin; }
+  .hl-item { display: flex; gap: 7px; padding: 5px 8px; cursor: pointer; border-left: 2px solid transparent; }
+  .hl-item:hover { background: #eaeef2; }
+  body.dark .hl-item:hover { background: #30363d; }
+  body.beige .hl-item:hover { background: #e0d5b8; }
+  .hl-item.active { background: #ddf4ff; border-left-color: #0969da; }
+  body.dark .hl-item.active { background: #0d2d4b; border-left-color: #58a6ff; }
+  body.beige .hl-item.active { background: #f3e8c8; border-left-color: #8a6b1f; }
+  .hl-dot { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; margin-top: 5px; }
+  .hl-dot.y { background: #ffd400; }
+  .hl-dot.r { background: #ff6666; }
+  .hl-dot.g { background: #5fb236; }
+  .hl-dot.b { background: #2ea8e5; }
+  .hl-dot.v { background: #a28ae5; }
+  .hl-dot.p { background: #e56eee; }
+  .hl-dot.o { background: #f19837; }
+  .hl-dot.n { background: #aaaaaa; }
+  .hl-body { flex: 1 1 auto; min-width: 0; }
+  .hl-txt {
+    display: block; font-size: 12.5px; line-height: 1.45; color: #24292f;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  body.dark .hl-txt { color: #c9d1d9; }
+  body.beige .hl-txt { color: #4a3b28; }
+  .hl-nt {
+    display: block; font-size: 11.5px; line-height: 1.4; color: #0969da;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  body.dark .hl-nt { color: #58a6ff; }
+  body.beige .hl-nt { color: #8a6b1f; }
+  /* 「文件中」小标：表示这条高亮已写进 .md（==文字==） */
+  .hl-file-tag {
+    display: inline-block; margin-left: 5px; padding: 0 5px; border-radius: 8px;
+    font-size: 10px; line-height: 15px; vertical-align: 1px;
+    background: #ddf4ff; color: #0969da; border: 1px solid #b6e3ff;
+  }
+  body.dark .hl-file-tag { background: #10304f; color: #79c0ff; border-color: #1f4b78; }
+  body.beige .hl-file-tag { background: #e8dcb8; color: #7a5a1e; border-color: #d8cba8; }
+  .hl-del2 {
+    flex: 0 0 auto; align-self: center; width: 18px; height: 18px; line-height: 1;
+    border: 0; background: transparent; color: #8c959f; cursor: pointer; border-radius: 4px;
+    opacity: 0; font-size: 13px; padding: 0;
+  }
+  .hl-item:hover .hl-del2 { opacity: 1; }
+  .hl-del2:hover { background: #ffebe9; color: #cf222e; }
+  body.dark .hl-del2:hover { background: #5a2a2a; color: #ff7b72; }
 </style>
 </head>
 <body>
@@ -425,7 +856,6 @@
       <div id="topbar">
         <button class="toolbtn" id="openBtn">打开</button>
         <button class="toolbtn" id="exportBtn" title="导出：PDF / Word（.docx）">导出</button>
-        <button class="theme" id="themeBtn" onclick="toggleTheme()">主题：亮色</button>
         <button class="toolbtn" id="reloadBtn">重新加载</button>
         <button class="toolbtn" id="helpBtn" title="帮助：反馈问题 / 关于本软件">帮助</button>
         <label><input type="checkbox" id="watchChk"> 自动刷新</label>
@@ -443,11 +873,58 @@
       <div id="tabs"></div>
       <button class="nav" id="navNext" title="标签向右滚动">&#8250;</button>
     </div>
+    <div id="actbar">
+      <div class="ab-left">
+        <button class="ab-btn icon" id="sbToggleBtn" title="显示 / 隐藏左侧侧栏（文件·大纲·高亮）（Ctrl+B）">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+               stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4.2" width="18" height="15.6" rx="2.6"/>
+            <line x1="9.4" y1="4.2" x2="9.4" y2="19.8"/>
+            <line x1="5.5" y1="8.2" x2="7.3" y2="8.2"/>
+            <line x1="5.5" y1="12" x2="7.3" y2="12"/>
+            <line x1="5.5" y1="15.8" x2="7.3" y2="15.8"/>
+          </svg>
+        </button>
+        <span class="ab-tabs" id="sbTabsInBar">
+          <button class="ab-tab active" id="sbTabFiles" title="浏览文件夹里的 .md">文件</button>
+          <button class="ab-tab" id="sbTabToc" title="按标题跳转到正文">大纲</button>
+          <button class="ab-tab" id="sbTabHl" title="本文的高亮与备注，点一下跳过去">高亮</button>
+        </span>
+      </div>
+      <div class="ab-right">
+        <button class="ab-btn" id="editBtn" title="进入编辑模式：可以直接改正文，改完点「保存」才写回源文件">✎ 编辑</button>
+        <button class="ab-btn primary" id="saveBtn" style="display:none" title="保存到源文件（Ctrl+S），保存前自动备份 .bak">保存</button>
+        <span class="ab-sep"></span>
+        <button class="ab-btn" id="hlBtn" title="高亮工具：开启后选中文字立刻标注（再点一次关闭）">高亮</button>
+        <button class="ab-btn" id="hlChipBtn" title="选择高亮颜色">
+          <span class="hl-chip" id="hlChip"></span><span class="hl-caret">▾</span>
+        </button>
+        <span class="ab-sep"></span>
+        <button class="ab-btn" id="themeBtn" onclick="toggleTheme()" title="切换主题：亮色 → 暗色 → 米色">主题：亮色</button>
+        <span class="ab-sep"></span>
+        <button class="ab-btn icon" id="zoomOutBtn" title="缩小正文字号（Ctrl+滚轮 或 Ctrl+-）">A−</button>
+        <span class="ab-zoom" id="zoomPct" title="正文字号，点一下恢复 100%（Ctrl+0）">100%</span>
+        <button class="ab-btn icon" id="zoomInBtn" title="放大正文字号（Ctrl+滚轮 或 Ctrl+=）">A+</button>
+        <button class="ab-btn" id="fitBtn" title="适应窗口：正文字号随窗口大小自动调整">适应窗口</button>
+      </div>
+    </div>
   </div>
   <div id="tablist"></div>
   <div id="exportMenu" class="popmenu">
     <div class="hli" id="expPdf" title="走系统打印对话框，选“另存为 PDF”">导出 PDF</div>
     <div class="hli" id="expWord" title="保存为可编辑的 .docx Word 文件">导出 Word</div>
+  </div>
+  <div id="hlPick">
+    <div class="hl-row">
+      <button type="button" class="hl-sw y" data-c="y" title="黄色"></button>
+      <button type="button" class="hl-sw r" data-c="r" title="红色"></button>
+      <button type="button" class="hl-sw g" data-c="g" title="绿色"></button>
+      <button type="button" class="hl-sw b" data-c="b" title="蓝色"></button>
+      <button type="button" class="hl-sw v" data-c="v" title="紫色"></button>
+      <button type="button" class="hl-sw p" data-c="p" title="品红"></button>
+      <button type="button" class="hl-sw o" data-c="o" title="橙色"></button>
+      <button type="button" class="hl-sw n" data-c="n" title="灰色"></button>
+    </div>
   </div>
   <div id="helpMenu" class="popmenu">
     <div class="hli" id="helpUpdate" title="查询 GitHub Releases 是否有新版本">检查更新</div>
@@ -455,7 +932,22 @@
     <div class="hli" id="helpFeedback">反馈</div>
     <div class="hli" id="helpAbout">关于</div>
   </div>
-  <div id="views"><div id="tabmask"></div><div class="empty">没有打开的文档 &mdash; 双击任意 .md 即可在此打开</div></div>
+  <div id="main">
+    <div id="sidebar">
+      <div class="sb-head" id="sbHead">
+        <span class="sb-btns">
+          <button class="sb-btn" id="sbOpen">打开文件夹</button>
+          <button class="sb-btn" id="sbClose" title="收起侧栏">×</button>
+        </span>
+      </div>
+      <div class="sb-path" id="sbPath"></div>
+      <div class="sb-tree" id="tree"></div>
+      <div class="sb-toc" id="toc" style="display:none"></div>
+      <div class="sb-hl" id="hlList" style="display:none"></div>
+    </div>
+    <div id="sbResizer" title="拖动调整宽度（双击复位）"></div>
+    <div id="views"><div id="tabmask"></div><div class="empty">没有打开的文档 &mdash; 双击任意 .md 即可在此打开</div></div>
+  </div>
 
   <script>
   /* 独立自包含脚本：放在 chrome 绘制之后、主脚本之前，不依赖后面任何代码。
@@ -483,6 +975,8 @@
         // 关闭前尽力再落盘一次阅读位置（真正的位置保存在滚动停止时已写入，
         // 这里只是双保险，失败也不影响退出）
         try { if (window.saveSession) window.saveSession(); } catch (e) {}
+        // 有未保存的编辑时先问一句，别让改动随窗口一起消失
+        try { if (typeof window.__pmMaybeClose === "function" && window.__pmMaybeClose()) return; } catch (e) {}
         callApi("window_close");
       });
     }
@@ -524,11 +1018,226 @@
     window.addEventListener("mouseup", function () { dragging = false; });
     window.addEventListener("blur", function () { dragging = false; });
   })();
+
+  /* 拖拽遮罩：拖窗口边缘 / 拖侧栏宽度时盖上，接住 mousemove（iframe 内的
+     mousemove 不冒泡到父页，会断手势）。关键是 iframe 全程不被 pointer-events
+     屏蔽，否则 Chromium 合成器会把它从滚轮命中树里摘掉，之后正文就滚不动了。 */
+  (function () {
+    var sh = null;
+    window.__pmShield = function (on, cursor) {
+      try {
+        if (!sh) {
+          sh = document.createElement("div");
+          sh.id = "dragshield";
+          (document.body || document.documentElement).appendChild(sh);
+        }
+        if (on) {
+          sh.style.cursor = cursor || "default";
+          sh.style.display = "block";
+        } else {
+          sh.style.display = "none";
+        }
+      } catch (e) {}
+    };
+  })();
+
+  /* ----------------------------------------------------------------
+     自由缩放手柄：8 个边缘/角 div，覆盖在窗口四周。
+     拖拽时读取 window_get_rect，按方向叠加位移（已乘 DPI 比），调用 window_set_rect。
+     放在最底层脚本里，即使后续脚本出错，缩放依然可用。
+  ---------------------------------------------------------------- */
+  (function () {
+    function hasApi() { return !!(window.pywebview && window.pywebview.api); }
+    var EDGES = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
+    EDGES.forEach(function (edge) {
+      var g = document.createElement("div");
+      g.className = "rg rg-" + edge;
+      g.dataset.edge = edge;
+      g.addEventListener("mousedown", function (ev) { startResize(edge, ev); });
+      document.body.appendChild(g);   // 贴视口四边（fixed），不能挂在标题栏里
+    });
+    var resizing = null;
+    var resizeSeq = 0;
+    var resizeWatchdog = null;
+    function startResize(edge, ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (!hasApi() || !window.pywebview.api.window_resize_to) return;
+      // 同步挂监听：pywebview 的 API 调用是异步的（几百毫秒），
+      // 若先等它返回再挂，这段时间的 mousemove 会全部丢失（第一次拖拽没反应）。
+      // 起点优先用 mousedown 坐标；但它可能是上一帧的过期值（输入被合并时常见），
+      // 所以在第一次 mousemove 时校验：偏差离谱就改用首帧坐标当起点。
+      resizing = { edge: edge, gid: ++resizeSeq,
+                   mx: ev.screenX, my: ev.screenY, sx: null, sy: null };
+      window.__pmGestureBusy = true;
+      document.body.classList.add("resizing");
+      var CUR = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize",
+                  ne: "nesw-resize", sw: "nesw-resize", nw: "nwse-resize", se: "nwse-resize" };
+      if (window.__pmShield) window.__pmShield(true, CUR[edge] || "default");
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      // mouseup 可能丢失（鼠标在窗口外松开、拖拽中切走窗口、触摸板手势中断），
+      // 一旦漏掉 resizing 类就永久残留，正文 iframe 被 pointer-events:none 封死 → 滚不动。
+      window.addEventListener("blur", onUp);
+      window.addEventListener("pointercancel", onUp);
+      if (resizeWatchdog) clearTimeout(resizeWatchdog);
+      resizeWatchdog = setTimeout(onUp, 12000);
+      window.__pmEndResize = onUp;      // 供全局自愈钩子调用
+    }
+    // 鼠标移动远快于跨进程往返：单飞 + 取最新，只发「相对起点的累计位移」，
+    // 即便有丢帧，最后落地的那次也对应正确几何。
+    var sending = false, latest = null;
+    function pushResize(m) {
+      latest = m;
+      if (!sending) flushResize();
+    }
+    function flushResize() {
+      if (!latest) return;
+      var m = latest; latest = null; sending = true;
+      function done() { sending = false; flushResize(); }
+      try {
+        var p = window.pywebview.api.window_resize_to(
+          m.gid, m.e, m.dx, m.dy, window.outerWidth, window.outerHeight);
+        if (p && p.then) p.then(done, done); else done();
+      } catch (e) { done(); }
+    }
+    function onMove(ev) {
+      if (!resizing) return;
+      // 兜底：鼠标键已经松开却没收到 mouseup（窗口外释放 / 事件被吞）→ 立刻收尾，
+      // 否则 body.resizing 会让正文 iframe 永久 pointer-events:none，表现为"无法滚动"。
+      if (ev.buttons === 0) { onUp(); return; }
+      if (resizing.sx === null) {
+        var jx = ev.screenX - resizing.mx, jy = ev.screenY - resizing.my;
+        if (Math.abs(jx) <= 40 && Math.abs(jy) <= 40) {
+          resizing.sx = resizing.mx; resizing.sy = resizing.my;   // 正常小步移动
+        } else {
+          resizing.sx = ev.screenX; resizing.sy = ev.screenY;     // 起点坐标不可信
+        }
+      }
+      pushResize({
+        gid: resizing.gid, e: resizing.edge,
+        dx: ev.screenX - resizing.sx, dy: ev.screenY - resizing.sy
+      });
+    }
+    function onUp() {
+      if (window.__pmShield) window.__pmShield(false);
+      if (!resizing) return;
+      resizing = null;
+      document.body.classList.remove("resizing");
+      window.__pmGestureBusy = false;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("blur", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      if (resizeWatchdog) { clearTimeout(resizeWatchdog); resizeWatchdog = null; }
+    }
+  })();
+
+  /* 手势兜底自愈：任何原因导致 resizing / sb-resizing 类残留，或透明掩体
+     (#tabmask) 挡在正文上，都会让正文滚不动。下面三个钩子保证下一次鼠标
+     移动/滚轮/失焦时自动恢复，用户不必重启程序。 */
+  (function () {
+    function activeIframe() {
+      var frs = document.querySelectorAll("#views > iframe");
+      for (var i = 0; i < frs.length; i++) {
+        if (frs[i].style.display !== "none") return frs[i];
+      }
+      return null;
+    }
+    function wheelScrollIframe(dy, dm) {
+      try {
+        var fr = activeIframe();
+        if (!fr || !fr.contentWindow) return;
+        var line = (dm === 1) ? 18 : (dm === 2 ? window.innerHeight * 0.9 : 1);
+        fr.contentWindow.scrollBy(0, dy * line);
+      } catch (e) {}
+    }
+    // force=true：由「按键已松开」的事件（mousemove/wheel 的 buttons===0、失焦、
+    // 窗口隐藏）驱动，此时即便 __pmGestureBusy 卡在 true 也说明手势其实早结束了。
+    // 拖拽进行中 mousemove 的 buttons 是 1，不会被误判。
+    function heal(force) {
+      try {
+        var b = document.body;
+        var stuck = b.classList.contains("resizing") || b.classList.contains("sb-resizing");
+        if (force || stuck) {
+          if (stuck) {
+            // 先让手势自己收尾（摘监听、存侧栏宽度），再兜底清类
+            try { if (window.__pmEndResize) window.__pmEndResize(); } catch (e2) {}
+            try { if (window.__pmEndSbResize) window.__pmEndSbResize(); } catch (e3) {}
+            b.classList.remove("resizing");
+            b.classList.remove("sb-resizing");
+            window.__pmGestureBusy = false;
+          } else if (window.__pmGestureBusy) {
+            // 类都没了却还 busy：收尾漏了，放开闸门，否则自愈永久失效
+            window.__pmGestureBusy = false;
+          }
+        }
+        var m = document.getElementById("tabmask");
+        if (m && m.style.display === "block") {
+          var tl = document.getElementById("tablist");
+          var hm = document.getElementById("helpMenu");
+          var em = document.getElementById("exportMenu");
+          var any = (tl && tl.style.display === "block") ||
+                    (hm && hm.style.display === "block") ||
+                    (em && em.style.display === "block");
+          if (!any) m.style.display = "none";   // 菜单已关、掩体没撤
+        }
+        // 拖拽遮罩残留会挡住整个窗口（比 pointer-events 更狠），一并兜底
+        var sh = document.getElementById("dragshield");
+        if (sh && sh.style.display === "block" && !window.__pmGestureBusy) {
+          sh.style.display = "none";
+        }
+      } catch (e) {}
+    }
+    // 1) 鼠标移动时若没有按键按下，说明没有手势在进行
+    var lastHeal = 0;
+    document.addEventListener("mousemove", function (ev) {
+      if (ev.buttons) return;
+      var now = Date.now();
+      if (now - lastHeal < 250) return;    // 节流：普通移动不必每帧都查
+      lastHeal = now;
+      heal(true);
+    }, true);
+    // 2) 滚轮：掩体若挡在正文上，先撤掉它，并把这次滚动补给正文（用户无感）
+    document.addEventListener("wheel", function (ev) {
+      var m = document.getElementById("tabmask");
+      if (m && m.style.display === "block" && ev.target === m) {
+        try { m.click(); } catch (e) {}     // 等价于点空白：收起菜单
+        m.style.display = "none";
+        wheelScrollIframe(ev.deltaY, ev.deltaMode);
+      }
+      heal(ev.buttons === 0);
+    }, { capture: true, passive: true });
+    // 3) 失焦 / 窗口隐藏 / 定时巡检
+    window.addEventListener("blur", function () { heal(true); });
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) heal(true);
+    });
+    setInterval(function () { if (!window.__pmGestureBusy) heal(false); }, 5000);
+  })();
+
+  /* 补上任务栏最小化所需窗口样式（frameless 默认缺 WS_MINIMIZEBOX）。
+     放在最底层、重试两次：窗口可能还没完全建好。 */
+  (function () {
+    function apply() {
+      try {
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.apply_window_features)
+          window.pywebview.api.apply_window_features();
+      } catch (e) {}
+    }
+    setTimeout(apply, 300);
+    setTimeout(apply, 1500);
+  })();
   </script>
 
   <script>
     window.__pending = window.__pending || [];
     var tabs = [];      // {id, name, el, iframe}
+    var sidebarOpen = false;   // 左侧文件夹侧栏是否展开
+    var curFolder = null;      // 当前根文件夹路径
+    var expanded = {};         // 已展开的文件夹路径 -> true
+    var treeRoot = null;       // 当前树实际渲染的根（用于判断是否需要重绘）
+    var locatePath = null;     // 需要定位/高亮的文件（跟随当前标签）
     var activeId = null;
     var counter = 0;
     var theme = "light";       // "light" | "dark" | "beige"
@@ -685,9 +1394,12 @@
 
     function addTab(p) {
       p = (typeof p === "string") ? JSON.parse(p) : p;
-      // 同名文档：直接激活已有标签，避免重复
+      // 同名文档：直接激活已有标签，避免重复（优先按绝对路径去重，跨文件夹同名文件互不冲突）
       var hit = null;
-      for (var i = 0; i < tabs.length; i++) { if (tabs[i].name === p.name) { hit = tabs[i]; break; } }
+      for (var i = 0; i < tabs.length; i++) {
+        if (p.path && tabs[i].path && tabs[i].path === p.path) { hit = tabs[i]; break; }
+        if (!p.path && !tabs[i].path && tabs[i].name === p.name) { hit = tabs[i]; break; }
+      }
       if (hit) { activate(hit.id); return; }
 
       var empty = document.querySelector("#views .empty");
@@ -738,8 +1450,14 @@
       try {
         iframe.addEventListener("load", function () {
           applyTheme(iframe);
+          applyZoomTo(iframe);                  // 新标签也沿用当前正文字号
+          ensureZoomWired(iframe);              // 正文里的 Ctrl+滚轮 / Ctrl+数字
           watchScroll(t);                       // 监听滚动，实时记下阅读位置
+          hlAttachTo(t);                        // 装选区/点击交互，并恢复本文的高亮
+          applyHighlightsFor(t);
           if (t.scrollY) restoreScroll(iframe, t.scrollY);
+          if (sbMode === "toc" && t.id === activeId) buildOutline(0);
+          else if (sbMode === "hl" && t.id === activeId) renderHlList();
         });
       } catch (e) {}
       iframe.srcdoc = p.html;
@@ -749,6 +1467,7 @@
       activate(id);
       updateNav();
       saveSession();
+      scheduleTreeSync(t);      // 侧栏文件树自动切到该文件所属文件夹并高亮它
     }
 
     // ---- 阅读位置记忆：切换标签时记住滚动位置，切回时恢复 ----
@@ -822,6 +1541,7 @@
           if (t.iframe.__restoreTo && Math.abs(cur - t.iframe.__restoreTo) <= 2) return;
           t.iframe.__restoreTo = 0;      // 用户真的自己滚了 → 立即取消恢复
           t.scrollY = cur;
+          markTocActive(t);              // 同步大纲高亮
           scheduleSave();
         }, { passive: true });
       } catch (e) {}
@@ -847,7 +1567,13 @@
         }
       }
       refreshTabListIfOpen();
+      if (sbMode === "toc") buildOutline(0);   // 切换文档后大纲跟着换
+      else if (sbMode === "hl") renderHlList();
+      closeHlPop();
       saveSession();
+      var _at = activeTab();
+      if (_at) scheduleTreeSync(_at);           // 切标签时文件树跟着定位到该文件
+      if (typeof updateEditUI === "function") updateEditUI();
     }
 
     // 标签栏左右滚动
@@ -1049,6 +1775,27 @@
       var idx = -1;
       for (var i = 0; i < tabs.length; i++) { if (tabs[i].id === id) { idx = i; break; } }
       if (idx < 0) return;
+      // 有未保存的编辑时先确认，避免手快点×把改动作废
+      if (EDITED[id] && !closeTab.__force) {
+        var tt = tabs[idx];
+        askConfirm("关闭前要保存吗", "「" + (tt.name || "") + "」里有改动还没写回文件。", [
+          { label: "取消", value: "cancel" },
+          { label: "不保存", value: "discard" },
+          { label: "保存并关闭", value: "save", primary: true }
+        ]).then(function (v) {
+          if (v === "discard") { delete EDITED[id]; closeTab(id); }
+          else if (v === "save") {
+            var pm = pmOf(tt);
+            window.pywebview.api.save_md(tt.path, pm ? pm.buildText() : "").then(function (r) {
+              if (!r || r.error) { setStatus("保存失败：" + ((r && r.error) || "未知错误")); return; }
+              delete EDITED[id];
+              closeTab(id);
+            }).catch(function () {});
+          }
+        });
+        return;
+      }
+      delete EDITED[id];
       tabs[idx].el.remove();
       tabs[idx].iframe.remove();
       tabs.splice(idx, 1);
@@ -1056,6 +1803,11 @@
         activeId = null;
         document.getElementById("views").innerHTML =
           '<div class="empty">没有打开的文档 &mdash; 双击任意 .md 即可在此打开</div>';
+        locatePath = null;
+        markTreeFile("");          // 没有打开的文件了，清掉树里的选中态
+        tocItems = []; tocTabId = null;      // 大纲也清掉，别留着上一篇的标题
+        var tocBox = document.getElementById("toc");
+        if (tocBox) tocBox.innerHTML = '<div class="sb-err" style="color:#6e7781">（没有打开的文档）</div>';
         updateNav();
         saveSession();
         return;
@@ -1114,7 +1866,121 @@
       saveCfg({ theme: theme });     // 记住用户选择，下次打开仍是这个主题
     }
 
+    // ---- 正文字号缩放 ----
+    // 只作用于正文（每条标签页 iframe 里的文档），界面本身（标签栏/工具条/侧栏）字号不动。
+    // 用的是 html 元素上的 CSS zoom：和浏览器整页缩放同一套视觉效果（字、行距、代码块一起变），
+    // 但因为只加在 iframe 内部，所以正文之外再也不受影响。
+    var ZOOM_MIN = 0.6, ZOOM_MAX = 3.0, ZOOM_STEP = 0.1;
+    var FIT_BASE = 980;          // 模板里 #wrap 的最大正文栏宽（CSS px）
+    var fontScale = 1;           // 1 = 100%
+    var fitWindow = false;       // 「适应窗口」是否开启
+    var fitTimer = null;
+
+    function zoomPctText() { return Math.round(fontScale * 100) + "%"; }
+
+    function applyZoomTo(fr) {
+      try {
+        var d = fr && fr.contentDocument;
+        if (!d || !d.documentElement) return;
+        var v = (Math.abs(fontScale - 1) < 0.005) ? "" : String(fontScale);
+        if (d.documentElement.style.zoom !== v) d.documentElement.style.zoom = v;
+      } catch (e) {}
+    }
+    // iframe 里的滚轮/快捷键要单独绑：事件不会冒泡到父文档
+    function ensureZoomWired(fr) {
+      try {
+        var d = fr && fr.contentDocument;
+        if (!d || d.__pmZoomWired) return;
+        d.__pmZoomWired = true;
+        d.addEventListener("wheel", function (ev) {
+          if (!(ev.ctrlKey || ev.metaKey)) return;
+          ev.preventDefault();
+          stepScale(ev.deltaY < 0 ? 1 : -1);
+        }, { passive: false });
+        d.addEventListener("keydown", function (ev) {
+          if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
+          var k = ev.key;
+          if (k === "=" || k === "+") { ev.preventDefault(); stepScale(1); }
+          else if (k === "-" || k === "_") { ev.preventDefault(); stepScale(-1); }
+          else if (k === "0") { ev.preventDefault(); setScale(1); }
+        }, true);
+      } catch (e) {}
+    }
+    function applyZoomAll() {
+      for (var i = 0; i < tabs.length; i++) {
+        applyZoomTo(tabs[i].iframe);
+        ensureZoomWired(tabs[i].iframe);
+      }
+      updateZoomUI();
+    }
+    function updateZoomUI() {
+      var p = document.getElementById("zoomPct");
+      if (p) p.textContent = zoomPctText();
+      var fb = document.getElementById("fitBtn");
+      if (fb) fb.classList.toggle("on", !!fitWindow);
+    }
+    // 「适应窗口」的目标字号：让正文栏（980 CSS px）正好铺满可见宽度
+    function fitScale() {
+      var v = document.getElementById("views");
+      var w = (v && v.clientWidth) ? v.clientWidth : window.innerWidth;
+      var s = w / FIT_BASE;
+      s = Math.min(2.4, Math.max(0.8, Math.round(s * 100) / 100));
+      return s;
+    }
+    // keepFit=true：由「适应窗口」内部调用，不要关掉适配模式
+    function setScale(v, keepFit) {
+      v = Math.round(v * 100) / 100;
+      v = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v));
+      if (!keepFit && fitWindow) { fitWindow = false; saveCfg({ fit_window: false }); }
+      var changed = (v !== fontScale);
+      fontScale = v;
+      applyZoomAll();
+      // 适应窗口模式下字号是算出来的，不必每次窗口拖动都写盘
+      if (!keepFit) saveCfg({ font_scale: v });
+      if (changed) setStatus("正文字号 " + zoomPctText() + (fitWindow ? "（适应窗口）" : ""));
+    }
+    function stepScale(dir) {
+      var pct = Math.round(fontScale * 100) + dir * Math.round(ZOOM_STEP * 100);
+      if (pct > ZOOM_MAX * 100) pct = ZOOM_MAX * 100;
+      if (pct < ZOOM_MIN * 100) pct = ZOOM_MIN * 100;
+      setScale(pct / 100);
+    }
+    function scheduleFit() {
+      if (fitTimer) clearTimeout(fitTimer);
+      fitTimer = setTimeout(function () {
+        fitTimer = null;
+        if (fitWindow) setScale(fitScale(), true);
+      }, 140);
+    }
+    function toggleFit() {
+      if (fitWindow) {
+        fitWindow = false;
+        saveCfg({ fit_window: false });
+        updateZoomUI();
+        setStatus("适应窗口：关（保持当前 " + zoomPctText() + "）");
+        return;
+      }
+      fitWindow = true;
+      saveCfg({ fit_window: true });
+      setScale(fitScale(), true);
+      setStatus("适应窗口：开 — 字号随窗口自动调整（当前 " + zoomPctText() + "）");
+    }
+
     // 初始：跟随系统深色偏好；之后系统切换时若用户没手动改过，自动跟随
+    // pywebview 的 JS API 是页面加载完成后才注入的。初始化瞬间可能还没有，
+    // 若此时直接判断会把整段「恢复配置」跳过（主题/文件夹/侧栏宽度全部失效）。
+    function whenApiReady(cb) {
+      var fired = false;
+      function run() { if (fired) return; fired = true; try { cb(); } catch (e) {} }
+      if (hasApi() && window.pywebview.api && window.pywebview.api.get_config) { run(); return; }
+      window.addEventListener("pywebviewready", run);
+      var n = 0;
+      var t = setInterval(function () {
+        if (hasApi() && window.pywebview.api && window.pywebview.api.get_config) { clearInterval(t); run(); }
+        else if (++n > 200) { clearInterval(t); }
+      }, 100);
+    }
+
     (function initTheme() {
       try {
         if (window.matchMedia) {
@@ -1127,23 +1993,56 @@
       } catch (e) {}
       applyAll();
       // 尝试从本地配置恢复用户上次的主题 / 自动刷新偏好
-      try {
-        if (hasApi() && window.pywebview.api.get_config) {
-          window.pywebview.api.get_config().then(function (cfg) {
-            if (cfg && cfg.theme && (cfg.theme === "dark" || cfg.theme === "beige" || cfg.theme === "light")) {
-              theme = cfg.theme; userToggled = true; applyAll();
-            }
-            if (cfg && typeof cfg.autoWatch === "boolean") {
-              var wc = document.getElementById("watchChk");
-              if (wc) wc.checked = cfg.autoWatch;
-            }
-          }).catch(function () {});
-          // 启动 2.5s 后自动检查新版本（异步不阻塞首屏；失败静默；可在帮助菜单关掉）
-          if (cfg && typeof cfg.auto_update_check === "boolean") cfgAutoChk = cfg.auto_update_check;
+      whenApiReady(function () {
+        if (!hasApi() || !window.pywebview.api.get_config) return;
+        window.pywebview.api.get_config().then(function (cfg) {
+          if (cfg && cfg.theme && (cfg.theme === "dark" || cfg.theme === "beige" || cfg.theme === "light")) {
+            theme = cfg.theme; userToggled = true; applyAll();
+          }
+          if (cfg && typeof cfg.autoWatch === "boolean") {
+            var wc = document.getElementById("watchChk");
+            if (wc) wc.checked = cfg.autoWatch;
+          }
+          // 恢复上次选择的文件夹：侧栏自动展开，方便随时点开里面的 .md
+          if (cfg && cfg.folder && typeof cfg.folder === "string") {
+            try {
+              curFolder = cfg.folder; setSbPath();
+              var sb = document.getElementById("sidebar");
+              sb.classList.add("show"); sidebarOpen = true;
+              treeRoot = null;
+              ensureTree();      // 按当前打开的文件对齐根目录并定位它
+            } catch (e2) {}
+          }
+          // 恢复上次侧栏看的是「文件」「大纲」还是「高亮」
+          if (cfg && cfg.sb_mode === "toc") setSbMode("toc");
+          else if (cfg && cfg.sb_mode === "hl") setSbMode("hl");
+          // 恢复高亮标注（存在 config.json 里，源 .md 一个字节都不会改）
+          if (cfg && cfg.highlights && typeof cfg.highlights === "object") {
+            HL = cfg.highlights;
+            for (var hi = 0; hi < tabs.length; hi++) applyHighlightsFor(tabs[hi]);
+            if (sbMode === "hl") renderHlList();
+          }
+          if (cfg && cfg.hl_color && HL_COLORS[cfg.hl_color]) hlColor = cfg.hl_color;
+          updateHlChip();
+          // 恢复上次拖出来的侧栏宽度
+          if (cfg && typeof cfg.sidebarWidth === "number") applySidebarWidth(cfg.sidebarWidth);
+          // 恢复上次的正文字号 / 是否「适应窗口」（字号只影响正文，不影响界面）
+          if (cfg && typeof cfg.font_scale === "number" && isFinite(cfg.font_scale)) {
+            fontScale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, cfg.font_scale));
+          }
+          if (cfg && cfg.fit_window === true) {
+            fitWindow = true;
+            setScale(fitScale(), true);
+          } else {
+            fitWindow = false;
+            applyZoomAll();
+          }
+          if (typeof cfg.auto_update_check === "boolean") cfgAutoChk = cfg.auto_update_check;
           setAutoChkLabel();
-          setTimeout(function () { checkUpdateFlow(false); }, 2500);
-        }
-      } catch (e) {}
+        }).catch(function () {});
+        // 启动 2.5s 后自动检查新版本（异步不阻塞首屏；失败静默；可在帮助菜单关掉）
+        setTimeout(function () { checkUpdateFlow(false); }, 2500);
+      });
     })();
 
     // ---- 顶部工具栏：打开文件 / 重新加载 / 自动刷新（功能需要 Python 侧 js_api 支持）----
@@ -1324,6 +2223,11 @@
         var hit = null;
         for (var i = 0; i < tabs.length; i++) { if (tabs[i].name === p.name) { hit = tabs[i]; break; } }
         if (!hit) return;
+        // 正在编辑的标签不能被外部刷新覆盖，否则改到一半的内容就没了
+        if (hit.editing || EDITED[hit.id]) {
+          setStatus("「" + hit.name + "」有未保存的修改，已跳过自动刷新（先保存或退出编辑）");
+          return;
+        }
         var fr = hit.iframe;
         // 自动刷新 / 重新加载前先记下当前阅读位置，重载后写回，避免跳回开头
         var keep = ifScrollY(fr);
@@ -1331,6 +2235,7 @@
         fr.onload = function () {
           applyTheme(fr);
           restoreScroll(fr, keep);
+          if (sbMode === "toc" && hit.id === activeId) buildOutline(0);
         };
         fr.srcdoc = p.html;
       } catch (e) {}
@@ -1408,6 +2313,563 @@
     }
     wireToolbar();
 
+    // ---- 左侧文件夹侧栏：随时点开文件夹里的 .md ----
+    function setSbPath() {
+      try {
+        var el = document.getElementById("sbPath");
+        if (el) { el.textContent = curFolder || ""; el.title = curFolder || ""; }
+      } catch (e) {}
+    }
+
+    // ---- 路径工具（统一用反斜杠；Windows 路径大小写不敏感） ----
+    function normPath(p) { return String(p == null ? "" : p).replace(/\//g, "\\"); }
+    function expKey(p) { return normPath(p).replace(/\\+$/, "").toLowerCase(); }
+    function joinPath(dir, name) {
+      var d = normPath(dir);
+      if (!d) return String(name);
+      if (d.slice(-1) === "\\") return d + name;
+      return d + "\\" + name;
+    }
+    // 取所在目录；"C:\a.md" -> "C:\"，"C:\x\a.md" -> "C:\x"
+    function pathDir(p) {
+      var s = normPath(p);
+      var i = s.lastIndexOf("\\");
+      if (i <= 0) return "";
+      if (i === 2 && s.charAt(1) === ":") return s.slice(0, 3);
+      return s.slice(0, i);
+    }
+    function isUnder(file, root) {
+      var f = expKey(file), r = expKey(root);
+      if (!f || !r) return false;
+      return f === r || f.indexOf(r + "\\") === 0;
+    }
+
+    function listDir(path) {
+      return new Promise(function (resolve) {
+        if (!hasApi() || !window.pywebview.api.list_dir) { resolve({folders: [], files: []}); return; }
+        window.pywebview.api.list_dir(path).then(resolve).catch(function () { resolve({folders: [], files: []}); });
+      });
+    }
+    function makeRow(name, kind, depth) {
+      var row = document.createElement("div");
+      row.className = "sb-row " + kind;
+      row.style.paddingLeft = (8 + depth * 14) + "px";
+      row.innerHTML = '<span class="sb-caret' + (kind === "file" ? " sp" : "") + '"></span>' +
+                      (kind === "folder"
+                        ? '<span class="sb-ico">📁</span>'
+                        : '<span class="sb-ico-file"></span>') +
+                      '<span class="sb-name"></span>';
+      row.querySelector(".sb-name").textContent = name;
+      return row;
+    }
+    function renderTree(folder, container, depth) {
+      container.innerHTML = "";
+      listDir(folder).then(function (d) {
+        if (d && d.error) { container.innerHTML = '<div class="sb-err">' + d.error + '</div>'; return; }
+        var folders = (d && d.folders) || [];
+        var files = (d && d.files) || [];
+        if (!folders.length && !files.length) {
+          container.innerHTML = '<div class="sb-err" style="color:#6e7781">（没有 .md 文件）</div>';
+          return;
+        }
+        var frag = document.createDocumentFragment();
+        folders.forEach(function (name) {
+          var full = joinPath(folder, name);
+          var key = expKey(full);
+          var row = makeRow(name, "folder", depth);
+          row.dataset.path = full;
+          var caret = row.querySelector(".sb-caret");
+          var childBox = document.createElement("div");
+          childBox.className = "sb-children";
+          // 重建树时沿用已记录的展开状态（否则标记与显示不一致，要点两次才展开）
+          if (expanded[key]) {
+            caret.classList.add("open");
+            childBox.style.display = "block";
+            renderTree(full, childBox, depth + 1);
+          } else {
+            childBox.style.display = "none";
+          }
+          row.addEventListener("click", function (e) {
+            e.stopPropagation();
+            if (expanded[key]) {
+              expanded[key] = false; childBox.style.display = "none"; caret.classList.remove("open");
+            } else {
+              expanded[key] = true; caret.classList.add("open");
+              childBox.style.display = "block"; renderTree(full, childBox, depth + 1);
+            }
+          });
+          frag.appendChild(row); frag.appendChild(childBox);
+        });
+        files.forEach(function (name) {
+          var full = joinPath(folder, name);
+          var row = makeRow(name, "file", depth);
+          row.dataset.path = full;
+          row.addEventListener("click", function (e) { e.stopPropagation(); openSidebarFile(full); });
+          frag.appendChild(row);
+        });
+        container.appendChild(frag);
+        // 子目录是异步渲染的，渲染完再尝试高亮当前文件
+        if (locatePath) markTreeFile(locatePath, container);
+      });
+    }
+    // ---- 打开文件时自动定位到它所在的文件夹 ----
+    // 规则：文件在当前根目录之下 → 保持根目录，逐级展开并高亮该文件；
+    //       文件不在当前根目录下 → 把根切到它所在的文件夹（即"所属文件夹"）。
+    function markTreeFile(path, scope) {
+      try {
+        var box = scope || document.getElementById("tree");
+        if (!box) return;
+        var want = expKey(path);
+        var rows = box.querySelectorAll(".sb-row.file");
+        for (var i = 0; i < rows.length; i++) {
+          var hit = rows[i].dataset.path && expKey(rows[i].dataset.path) === want;
+          rows[i].classList.toggle("active", !!hit);
+          if (hit && !scope) {
+            var tb = box.getBoundingClientRect();
+            var rr = rows[i].getBoundingClientRect();
+            if (rr.top < tb.top || rr.bottom > tb.bottom) {
+              try { rows[i].scrollIntoView({ block: "center" }); } catch (e) {}
+            }
+          }
+        }
+      } catch (e) {}
+    }
+    // 树是逐层异步渲染的，目标行可能稍后才出现，所以重试几次
+    function locateInTree(path, tries) {
+      tries = tries || 0;
+      var tree = document.getElementById("tree");
+      if (!tree || !path) return;
+      var want = expKey(path);
+      var rows = tree.querySelectorAll(".sb-row.file");
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].dataset.path && expKey(rows[i].dataset.path) === want) {
+          markTreeFile(path);
+          return;
+        }
+      }
+      if (tries < 30) setTimeout(function () { locateInTree(path, tries + 1); }, 80);
+    }
+    function syncTreeToFile(t) {
+      // 标签可能在防抖窗口内被关掉/切走，此时不该再去定位它
+      if (!t || !t.path || !tabs.length || t !== activeTab()) {
+        if (!tabs.length) { locatePath = null; markTreeFile(""); }
+        return;
+      }
+      var dir = pathDir(t.path);
+      if (!dir) return;
+      locatePath = t.path;
+      if (!curFolder || !isUnder(t.path, curFolder)) {
+        // 文件不在当前根目录下 → 把根切到它所属的文件夹
+        if (expKey(curFolder) !== expKey(dir)) {
+          curFolder = dir;
+          expanded = {};
+          saveCfg({ folder: dir });   // 记住这次定位，下次启动直接还原
+          setSbPath();
+        }
+      }
+      // 从根到文件所在目录逐级展开
+      var cur = dir, guard = 0;
+      while (cur && curFolder && guard++ < 40) {
+        if (expKey(cur) === expKey(curFolder) || !isUnder(cur, curFolder)) break;
+        expanded[expKey(cur)] = true;
+        var up = pathDir(cur);
+        if (!up || up === cur) break;
+        cur = up;
+      }
+      var sb = document.getElementById("sidebar");
+      var showing = !!(sb && sb.classList.contains("show"));
+      if (showing && sbMode === "files") {
+        renderTree(curFolder, document.getElementById("tree"), 0);
+        treeRoot = curFolder;
+        locateInTree(locatePath);
+      } else {
+        // 根目录或展开状态可能变了，下次展开侧栏时按需重绘（避免在不可见时白渲染）
+        treeRoot = null;
+      }
+    }
+    // 打开/切换标签时调用（80ms 合并连续打开，避免启动恢复时反复重绘）
+    var treeSyncTimer = null, treeSyncTarget = null;
+    function scheduleTreeSync(t) {
+      if (!t || !t.path) return;
+      treeSyncTarget = t;
+      if (treeSyncTimer) clearTimeout(treeSyncTimer);
+      treeSyncTimer = setTimeout(function () {
+        treeSyncTimer = null;
+        var x = treeSyncTarget; treeSyncTarget = null;
+        syncTreeToFile(x);
+      }, 80);
+    }
+    // 侧栏显示「文件」时确保树与当前根一致，并定位当前文件
+    function ensureTree() {
+      var tree = document.getElementById("tree");
+      if (!tree || !curFolder) return;
+      if (treeRoot !== curFolder) {
+        renderTree(curFolder, tree, 0);
+        treeRoot = curFolder;
+      }
+      if (locatePath) locateInTree(locatePath);
+    }
+
+    function openSidebarFile(full) {
+      if (!hasApi()) { setStatus("此功能需要更新后的 exe"); return; }
+      setStatus("正在打开：" + full);
+      window.pywebview.api.open_md_path(full).then(function (p) {
+        if (p && p.name) { window.__addTab(p); setStatus("已打开 " + p.name); }
+        else if (p && p.error) setStatus(p.error);
+        else setStatus("打开失败");
+      }).catch(function (e) { setStatus("打开失败：" + (e && e.message ? e.message : e)); });
+    }
+    function pickFolder() {
+      if (!hasApi()) { setStatus("此功能需要更新后的 exe"); return; }
+      window.pywebview.api.pick_folder().then(function (p) {
+        if (p && typeof p === "string") {
+          curFolder = p; expanded = {}; saveCfg({ folder: curFolder });
+          var sb = document.getElementById("sidebar");
+          sb.classList.add("show"); sidebarOpen = true;
+          setSbPath();
+          treeRoot = null;
+          ensureTree();
+        } else if (p && p.error) {
+          setStatus(p.error);
+        }
+      }).catch(function (e) { setStatus("打开文件夹失败：" + (e && e.message ? e.message : e)); });
+    }
+    function showSidebar() {
+      var sb = document.getElementById("sidebar");
+      if (!sb) return;
+      sb.classList.add("show"); sidebarOpen = true;
+      if (sbMode === "files") ensureTree();       // 展开时把树对齐到当前文件
+      else if (sbMode === "toc") buildOutline(0); // 展开时重扫一遍标题，避免沿用启动早期的旧列表
+    }
+    // want：点工具栏哪个按钮进来（"files" / "toc"）。侧栏已开在另一模式时只切模式，不收起。
+    function toggleSidebar(want) {
+      var sb = document.getElementById("sidebar");
+      if (!sb) return;
+      var openNow = sb.classList.contains("show");
+      if (want && sbMode !== want) {
+        setSbMode(want);
+        if (!openNow) showSidebar();
+        return;
+      }
+      if (!openNow) {
+        if (sbMode === "files" && !curFolder) { pickFolder(); return; }
+        showSidebar();
+      } else {
+        sb.classList.remove("show"); sidebarOpen = false;
+      }
+    }
+    function wireSidebar() {
+      try {
+        var so = document.getElementById("sbOpen");
+        if (so) so.addEventListener("click", function (e) { e.stopPropagation(); pickFolder(); });
+        var sc = document.getElementById("sbClose");
+        if (sc) sc.addEventListener("click", function (e) { e.stopPropagation(); toggleSidebar(); });
+      } catch (e) {}
+    }
+    // 动作条最左边那个图标：只负责「开 / 关」侧栏，不主动弹选文件夹对话框
+    function toggleSbPanel() {
+      var sb = document.getElementById("sidebar");
+      if (!sb) return;
+      if (sb.classList.contains("show")) { sb.classList.remove("show"); sidebarOpen = false; }
+      else {
+        // 还没选过文件夹时，直接用「大纲」页打开，免得看到一个空文件树
+        if (sbMode === "files" && !curFolder) setSbMode("toc");
+        showSidebar();
+      }
+      updateSbToggle();
+    }
+    function updateSbToggle() {
+      var sb = document.getElementById("sidebar");
+      var b = document.getElementById("sbToggleBtn");
+      if (!sb || !b) return;
+      var on = sb.classList.contains("show");
+      sidebarOpen = on;
+      if (b.classList.contains("on") !== on) b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      // 「文件 / 大纲 / 高亮」三个页签跟着侧栏开合显示 / 隐藏
+      if (document.body.classList.contains("sb-open") !== on) {
+        document.body.classList.toggle("sb-open", on);
+      }
+    }
+    wireSidebar();
+
+    // ---- 侧栏宽度：拖右边框调整，双击复位 240px；宽度存配置，下次打开沿用 ----
+    var sbWidth = 240;
+    var SB_MIN_W = 140;
+    function applySidebarWidth(w) {
+      var sb = document.getElementById("sidebar");
+      if (!sb) return;
+      w = Math.round(Number(w) || 240);
+      var maxW = Math.max(220, Math.min(760, Math.round(window.innerWidth * 0.62)));
+      if (w < SB_MIN_W) w = SB_MIN_W;
+      if (w > maxW) w = maxW;
+      sbWidth = w;
+      sb.style.width = w + "px";
+    }
+    function wireResizer() {
+      var sb = document.getElementById("sidebar");
+      var rz = document.getElementById("sbResizer");
+      if (!sb || !rz) return;
+      var startX = 0, startW = 0, dragging = false, watchdog = null;
+      function onMove(ev) {
+        if (!dragging) return;
+        if (ev.buttons === 0) { onUp(); return; }   // mouseup 丢失兜底
+        applySidebarWidth(startW + (ev.clientX - startX));
+      }
+      function onUp() {
+        if (window.__pmShield) window.__pmShield(false);
+        if (!dragging) return;
+        dragging = false;
+        document.body.classList.remove("sb-resizing");
+        window.__pmGestureBusy = false;
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        window.removeEventListener("blur", onUp);
+        window.removeEventListener("pointercancel", onUp);
+        if (watchdog) { clearTimeout(watchdog); watchdog = null; }
+        saveCfg({ sidebarWidth: sbWidth });
+      }
+      rz.addEventListener("mousedown", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        dragging = true;
+        startX = ev.clientX;
+        startW = sb.getBoundingClientRect().width;
+        window.__pmGestureBusy = true;
+        document.body.classList.add("sb-resizing");
+        if (window.__pmShield) window.__pmShield(true, "col-resize");
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+        // 同上：mouseup 丢失会让 iframe 永久 pointer-events:none → 正文滚不动
+        window.addEventListener("blur", onUp);
+        window.addEventListener("pointercancel", onUp);
+        if (watchdog) clearTimeout(watchdog);
+        watchdog = setTimeout(onUp, 12000);
+        window.__pmEndSbResize = onUp;   // 供全局自愈钩子调用
+      });
+      rz.addEventListener("dblclick", function (ev) {
+        ev.stopPropagation();
+        applySidebarWidth(240);
+        saveCfg({ sidebarWidth: 240 });
+      });
+      // 拖完宽度鼠标常常就停在分隔条上，这一条只有 8px 宽、盖在正文左侧，
+      // 滚轮落上去不会滚正文 → 用户会以为「又滚不动了」。这里把滚轮转给正文。
+      rz.addEventListener("wheel", function (ev) {
+        try {
+          var fr = null, frs = document.querySelectorAll("#views > iframe");
+          for (var i = 0; i < frs.length; i++) {
+            if (frs[i].style.display !== "none") { fr = frs[i]; break; }
+          }
+          if (!fr || !fr.contentWindow) return;
+          var line = (ev.deltaMode === 1) ? 18
+                   : (ev.deltaMode === 2 ? window.innerHeight * 0.9 : 1);
+          fr.contentWindow.scrollBy(0, ev.deltaY * line);
+          ev.preventDefault();
+        } catch (e) {}
+      }, { passive: false });
+      // 窗口被缩窄时收回过宽的侧栏，避免正文被挤没
+      window.addEventListener("resize", function () {
+        if (sb.classList.contains("show")) applySidebarWidth(sbWidth);
+      });
+    }
+    wireResizer();
+
+    // ---- 左侧大纲：把当前文档的标题列出来，点一下直达正文对应位置 ----
+    var sbMode = "files";       // "files" | "toc"
+    var tocItems = [];          // [{el, level, text}]，与 #toc 子节点一一对应
+    var tocTabId = null;        // tocItems 对应的标签 id
+
+    function setSbMode(m) {
+      sbMode = (m === "toc") ? "toc" : (m === "hl") ? "hl" : "files";
+      var files = (sbMode === "files");
+      var tocOn = (sbMode === "toc");
+      var hlOn = (sbMode === "hl");
+      var tree = document.getElementById("tree");
+      var pth = document.getElementById("sbPath");
+      var toc = document.getElementById("toc");
+      var hll = document.getElementById("hlList");
+      var tf = document.getElementById("sbTabFiles");
+      var tt = document.getElementById("sbTabToc");
+      var th = document.getElementById("sbTabHl");
+      var so = document.getElementById("sbOpen");
+      var hd = document.getElementById("sbHead");
+      if (tree) tree.style.display = files ? "" : "none";
+      if (pth) pth.style.display = files ? "" : "none";
+      if (toc) toc.style.display = tocOn ? "" : "none";
+      if (hll) hll.style.display = hlOn ? "" : "none";
+      if (so) so.style.display = files ? "" : "none";
+      if (hd) hd.style.display = files ? "" : "none";   // 大纲 / 高亮页不需要头部行
+      if (tf) tf.classList.toggle("active", files);
+      if (tt) tt.classList.toggle("active", tocOn);
+      if (th) th.classList.toggle("active", hlOn);
+      saveCfg({ sb_mode: sbMode });
+      if (tocOn) buildOutline(0);
+      else if (hlOn) renderHlList();
+      else if (files) ensureTree();      // 切回「文件」时按当前文件重绘/定位
+    }
+
+    // 读取 iframe 里的标题（srcdoc 与父页同源，可直接访问 contentDocument）
+    function collectHeadings(t) {
+      var out = [];
+      if (!t || !t.iframe) return out;
+      var doc = null;
+      try { doc = t.iframe.contentDocument; } catch (e) { return out; }
+      if (!doc || !doc.body) return out;
+      var hs = doc.querySelectorAll("h1,h2,h3,h4,h5,h6");
+      var base = ifScrollY(t.iframe);
+      for (var i = 0; i < hs.length; i++) {
+        var h = hs[i];
+        var txt = (h.textContent || "").replace(/\s+/g, " ").trim();
+        if (!txt) continue;
+        var lv = parseInt(h.tagName.charAt(1), 10) || 1;
+        out.push({ el: h, level: lv, text: txt,
+                   top: h.getBoundingClientRect().top + base });   // 文档内绝对偏移
+      }
+      return out;
+    }
+
+    // retry：iframe 刚换内容时可能还没渲染完，重试几次（最多 ~1.2s）
+    function buildOutline(retry) {
+      var box = document.getElementById("toc");
+      if (!box) return;
+      var t = activeTab();
+      if (!t) {
+        tocItems = []; tocTabId = null;
+        box.innerHTML = '<div class="sb-err" style="color:#6e7781">（没有打开的文档）</div>';
+        return;
+      }
+      var list = collectHeadings(t);
+      if (!list.length) {
+        var n = retry || 0;
+        if (n < 8) { setTimeout(function () { buildOutline(n + 1); }, 150); return; }
+        tocItems = []; tocTabId = t.id;
+        box.innerHTML = '<div class="sb-err" style="color:#6e7781">（这篇文档没有标题）</div>';
+        return;
+      }
+      tocItems = list; tocTabId = t.id;
+      box.innerHTML = "";
+      var frag = document.createDocumentFragment();
+      list.forEach(function (it, idx) {
+        var row = document.createElement("div");
+        var lv = Math.max(1, Math.min(it.level, 6));
+        row.className = "toc-item toc-lv" + lv;
+        row.style.paddingLeft = (10 + (lv - 1) * 13) + "px";
+        row.textContent = it.text;
+        row.title = it.text;
+        row.dataset.idx = idx;
+        frag.appendChild(row);
+      });
+      box.appendChild(frag);
+      box.scrollTop = 0;
+      markTocActive(t);
+    }
+
+    // 点大纲跳转。这里有一条踩过的坑：大纲列表可能属于"另一个标签的文档"
+    // （切换标签 / 文档被重渲染时列表没跟上）。此时旧标题节点在它自己的文档里
+    // 仍然 isConnected，但 getBoundingClientRect() 因为不可见全是 0 —— 算出来
+    // 的 y≈0，状态栏照样显示"已定位到"，正文却一动不动。
+    // 所以：① 只认当前活动文档里的标题（比对 ownerDocument）；② 列表过期就先重建。
+    function jumpToHeading(it, idx) {
+      var t = activeTab();
+      if (!t || !t.iframe) return;
+      var doc = null;
+      try { doc = t.iframe.contentDocument; } catch (e) { return; }
+      if (!doc || !doc.body) return;
+      var stale = tocTabId !== t.id || !tocItems.length || !tocItems[0].el ||
+                  tocItems[0].el.ownerDocument !== doc;
+      if (stale) buildOutline(0);               // 按当前文档重建，下面的序号才对得上
+      var list = collectHeadings(t);
+      if (!list.length) {
+        buildOutline(0);
+        setStatus("正文还没加载完，请稍后再点一次");
+        return;
+      }
+      var target = null;
+      if (idx != null && list[idx]) {
+        if (!it || !it.text || list[idx].text === it.text) target = list[idx];
+        else if (stale) target = list[idx];     // 重建过：序号就是用户点的这一行
+      }
+      if (!target && it && it.text) {
+        for (var i = 0; i < list.length; i++) {
+          if (list[i].text === it.text) { target = list[i]; break; }
+        }
+      }
+      if (!target && idx != null && list[idx]) target = list[idx];
+      if (!target) target = list[0];
+      try {
+        var fr = t.iframe, w = fr.contentWindow;
+        var base = ifScrollY(fr);
+        var y = target.el.getBoundingClientRect().top + base - 8;
+        if (y < 0) y = 0;
+        fr.__restoreTo = 0;                      // 取消可能进行中的位置恢复
+        if (w && w.scrollTo) w.scrollTo(0, y);
+        // 兜底：文档的滚动容器不是 window 时 scrollTo 无效，改用 scrollIntoView
+        if (Math.abs(ifScrollY(fr) - y) > 4) {
+          try { target.el.scrollIntoView({ block: "start" }); }
+          catch (e2) { try { target.el.scrollIntoView(true); } catch (e3) {} }
+          if (Math.abs(ifScrollY(fr) - y) > 8 && w && w.scrollTo) w.scrollTo(0, y);
+        }
+        t.scrollY = ifScrollY(fr);
+        markTocActive(t);
+        scheduleSave();
+        setStatus("已定位到：" + (target.text || ""));
+      } catch (e) {}
+    }
+
+    // 滚动时高亮当前所在的小节（标题在文档中是顺序排列的，rect.top 单调递增）
+    function markTocActive(t) {
+      if (sbMode !== "toc" || !t || tocTabId !== t.id || !tocItems.length) return;
+      var box = document.getElementById("toc");
+      if (!box) return;
+      // 列表若还停在别的文档上，位置全是 0，会把高亮错标到最后一节，直接跳过
+      try {
+        if (!tocItems[0].el || tocItems[0].el.ownerDocument !== t.iframe.contentDocument) return;
+      } catch (e) { return; }
+      var idx = 0;
+      try {
+        for (var i = 0; i < tocItems.length; i++) {
+          if (tocItems[i].el.getBoundingClientRect().top <= 88) idx = i; else break;
+        }
+      } catch (e) { return; }
+      var rows = box.children;
+      for (var j = 0; j < rows.length; j++) rows[j].classList.toggle("active", j === idx);
+      // 高亮项超出侧栏可视范围时轻轻带进来（不抢用户滚动）
+      try {
+        var cur = rows[idx];
+        if (cur) {
+          var top = cur.offsetTop, bot = top + cur.offsetHeight;
+          if (top < box.scrollTop) box.scrollTop = top - 8;
+          else if (bot > box.scrollTop + box.clientHeight) box.scrollTop = bot - box.clientHeight + 8;
+        }
+      } catch (e2) {}
+    }
+
+    function wireToc() {
+      try {
+        var tf = document.getElementById("sbTabFiles");
+        var tt = document.getElementById("sbTabToc");
+        var th = document.getElementById("sbTabHl");
+        if (tf) tf.addEventListener("click", function (e) { e.stopPropagation(); setSbMode("files"); });
+        if (tt) tt.addEventListener("click", function (e) { e.stopPropagation(); setSbMode("toc"); });
+        if (th) th.addEventListener("click", function (e) { e.stopPropagation(); setSbMode("hl"); });
+        // 点条目走容器委托：列表每次重建都会换新行，绑在容器上不会漏绑
+        var tb = document.getElementById("toc");
+        if (tb && !tb.dataset.wired) {
+          tb.dataset.wired = "1";
+          tb.addEventListener("click", function (ev) {
+            var row = (ev.target && ev.target.closest) ? ev.target.closest(".toc-item") : null;
+            if (!row || !tb.contains(row)) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            var i = parseInt(row.dataset.idx, 10);
+            if (isNaN(i)) return;
+            jumpToHeading(tocItems[i], i);
+          });
+        }
+      } catch (e) {}
+    }
+    wireToc();
+
 
     // 绑定左右滚动按钮；鼠标滚轮上下滚也转成标签区横向滚动
     try {
@@ -1477,11 +2939,1159 @@
       window.addEventListener("resize", updateNav);
     } catch (e) {}
 
+    /* ================================================================
+       高亮标注（可编辑）
+       ----------------------------------------------------------------
+       原则：源 .md 只读，一个字节都不改。高亮 / 备注全部存在
+       %APPDATA%\PureMD\config.json 的 highlights 字段里，按文件路径分桶。
+       定位方式借鉴 W3C 文本锚点：选中文字 + 前后各 48 字上下文 + 出现序号，
+       所以源文件小幅改动后仍能贴回原处。
+       ================================================================ */
+    var HL = {};                 // { "f:d:\...\a.md": [ {id,color,note,text,prefix,suffix,occ,ts} ] }
+    var HL_COLORS = { y: 1, r: 1, g: 1, b: 1, v: 1, p: 1, o: 1, n: 1 };
+    var HL_HEX = { y: "#ffd400", r: "#ff6666", g: "#5fb236", b: "#2ea8e5",
+                   v: "#a28ae5", p: "#e56eee", o: "#f19837", n: "#aaaaaa" };
+    var HL_NAMES = { y: "黄", r: "红", g: "绿", b: "蓝", v: "紫", p: "品红", o: "橙", n: "灰" };
+    var hlColor = "y";           // 上次用过的颜色
+    var hlToolOn = false;        // 动作条上的「高亮」工具是否开启（选中即标注）
+    var hlMode = null;           // null | "new" | "edit"
+    var hlPending = null;        // { t, range }
+    var hlEditTab = null;
+    var hlEditId = null;
+    var hlActiveId = null;
+    var hlSaveTimer = null;
+
+    function hlKey(t) {
+      if (!t) return "";
+      if (t.path) return "f:" + String(t.path).toLowerCase();
+      return "n:" + (t.name || "");
+    }
+    function hlDocOf(t) {
+      try { return (t && t.iframe) ? t.iframe.contentDocument : null; } catch (e) { return null; }
+    }
+    function hlItems(t) {
+      var k = hlKey(t);
+      return (HL && HL[k]) ? HL[k] : [];
+    }
+    function hlFindItem(t, id) {
+      var a = hlItems(t);
+      for (var i = 0; i < a.length; i++) if (a[i].id === id) return a[i];
+      return null;
+    }
+    function hlWrite() {
+      var out = {};
+      for (var k in HL) {
+        if (!Object.prototype.hasOwnProperty.call(HL, k)) continue;
+        if (HL[k] && HL[k].length) out[k] = HL[k];
+      }
+      saveCfg({ highlights: out });
+    }
+    function hlSaveSoon() {
+      if (hlSaveTimer) clearTimeout(hlSaveTimer);
+      hlSaveTimer = setTimeout(function () {
+        hlSaveTimer = null;
+        hlWrite();
+      }, 450);
+    }
+
+    // ---- 注入到 iframe 里的高亮样式（随主题变色） ----
+    function hlEnsureStyle(doc) {
+      try {
+        if (!doc || doc.getElementById("pm-hl-style")) return;
+        var st = doc.createElement("style");
+        st.id = "pm-hl-style";
+        st.textContent =
+          "mark.pm-hl{background-color:rgba(255,212,0,.50)!important;color:inherit!important;" +
+            "padding:0 1px;border-radius:2px;cursor:pointer;" +
+            "-webkit-box-decoration-break:clone;box-decoration-break:clone;" +
+            "transition:background-color .12s ease;}" +
+          "mark.pm-hl-r{background-color:rgba(255,102,102,.34)!important;}" +
+          "mark.pm-hl-g{background-color:rgba(95,178,54,.38)!important;}" +
+          "mark.pm-hl-b{background-color:rgba(46,168,229,.30)!important;}" +
+          "mark.pm-hl-v{background-color:rgba(162,138,229,.38)!important;}" +
+          "mark.pm-hl-p{background-color:rgba(229,110,238,.32)!important;}" +
+          "mark.pm-hl-o{background-color:rgba(241,152,55,.34)!important;}" +
+          "mark.pm-hl-n{background-color:rgba(170,170,170,.38)!important;}" +
+          "body.dark mark.pm-hl,.markdown-body.dark mark.pm-hl{background-color:rgba(255,212,0,.30)!important;}" +
+          "body.dark mark.pm-hl-r,.markdown-body.dark mark.pm-hl-r{background-color:rgba(255,102,102,.32)!important;}" +
+          "body.dark mark.pm-hl-g,.markdown-body.dark mark.pm-hl-g{background-color:rgba(95,178,54,.32)!important;}" +
+          "body.dark mark.pm-hl-b,.markdown-body.dark mark.pm-hl-b{background-color:rgba(46,168,229,.36)!important;}" +
+          "body.dark mark.pm-hl-v,.markdown-body.dark mark.pm-hl-v{background-color:rgba(162,138,229,.38)!important;}" +
+          "body.dark mark.pm-hl-p,.markdown-body.dark mark.pm-hl-p{background-color:rgba(229,110,238,.34)!important;}" +
+          "body.dark mark.pm-hl-o,.markdown-body.dark mark.pm-hl-o{background-color:rgba(241,152,55,.34)!important;}" +
+          "body.dark mark.pm-hl-n,.markdown-body.dark mark.pm-hl-n{background-color:rgba(170,170,170,.46)!important;}" +
+          "mark.pm-hl:hover{filter:brightness(.96);}" +
+          "mark.pm-hl.hl-flash{outline:2px solid #0a84ff;outline-offset:1px;}";
+        (doc.head || doc.documentElement).appendChild(st);
+      } catch (e) {}
+    }
+
+    // ---- 文本索引：把正文所有可见文本拼成一条字符串，并记录每个文本节点的区间 ----
+    function hlWalker(doc) {
+      return doc.createTreeWalker(doc.body, 4 /* SHOW_TEXT */, {
+        acceptNode: function (n) {
+          var p = n.parentNode;
+          if (!p) return 2;
+          var tag = p.nodeName;
+          if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT") return 2;
+          return 1;
+        }
+      });
+    }
+    function hlIndex(doc) {
+      var nodes = [], parts = [], pos = 0, n, w = hlWalker(doc);
+      while ((n = w.nextNode())) {
+        var v = n.nodeValue || "";
+        if (!v) continue;
+        nodes.push({ node: n, start: pos, end: pos + v.length });
+        parts.push(v);
+        pos += v.length;
+      }
+      return { text: parts.join(""), nodes: nodes };
+    }
+    function hlText(doc) { return hlIndex(doc).text; }
+    // 统计 range 覆盖的可见文本长度（跳过 script/style，和上面的索引口径一致）
+    function hlTextLenInRange(doc, range) {
+      var w = hlWalker(doc), n, len = 0;
+      while ((n = w.nextNode())) {
+        var hit = false;
+        try { hit = range.intersectsNode(n); } catch (e) { hit = false; }
+        if (!hit) continue;
+        var s = (range.startContainer === n) ? range.startOffset : 0;
+        var e = (range.endContainer === n) ? range.endOffset : n.nodeValue.length;
+        if (e > s) len += e - s;
+      }
+      return len;
+    }
+    function hlNodeAt(idx, pos) {
+      var ns = idx.nodes;
+      for (var i = 0; i < ns.length; i++) {
+        if (pos >= ns[i].start && pos < ns[i].end) return { node: ns[i].node, off: pos - ns[i].start };
+        if (pos === ns[i].end) {
+          if (i + 1 < ns.length && ns[i + 1].start === pos) continue;
+          return { node: ns[i].node, off: ns[i].end - ns[i].start };
+        }
+      }
+      return null;
+    }
+    function hlRangeAt(doc, start, end) {
+      var idx = hlIndex(doc);
+      var a = hlNodeAt(idx, start), b = hlNodeAt(idx, end);
+      if (!a || !b) return null;
+      var r = doc.createRange();
+      try { r.setStart(a.node, a.off); r.setEnd(b.node, b.off); } catch (e) { return null; }
+      return r;
+    }
+
+    // ---- 由选区算出锚点（文字 + 前后文 + 第几次出现） ----
+    function hlMakeAnchor(doc, range) {
+      try {
+        var full = hlText(doc);
+        var pre = doc.createRange();
+        pre.selectNodeContents(doc.body);
+        pre.setEnd(range.startContainer, range.startOffset);
+        var start = hlTextLenInRange(doc, pre);
+        var len = hlTextLenInRange(doc, range);
+        if (!len) return null;
+        var text = full.substr(start, len);
+        if (!text || !text.replace(/\s/g, "")) return null;
+        var occ = 0, from = 0, i;
+        while ((i = full.indexOf(text, from)) !== -1 && i < start) { occ++; from = i + 1; }
+        return {
+          text: text,
+          prefix: full.slice(Math.max(0, start - 48), start),
+          suffix: full.slice(start + len, start + len + 48),
+          occ: occ
+        };
+      } catch (e) { return null; }
+    }
+    function hlFindRange(doc, h) {
+      var t = h.text || "";
+      if (!t) return null;
+      var full = hlText(doc);
+      var best = -1, fb = -1, occ = 0, from = 0, i;
+      while ((i = full.indexOf(t, from)) !== -1) {
+        var p = full.slice(Math.max(0, i - 48), i);
+        var s = full.slice(i + t.length, i + t.length + 48);
+        var okP = !h.prefix || p.slice(-h.prefix.length) === h.prefix;
+        var okS = !h.suffix || s.slice(0, h.suffix.length) === h.suffix;
+        if (okP && okS) { best = i; break; }
+        if (fb < 0 && occ === (h.occ || 0)) fb = i;
+        occ++; from = i + 1;
+      }
+      if (best < 0) best = fb;
+      if (best < 0) return null;
+      return hlRangeAt(doc, best, best + t.length);
+    }
+
+    // ---- 把 range 拆成「每个文本节点一段」，分别包 <mark> ----
+    // 不用 surroundContents 整段包：跨段落时它会复制外层标签、破坏正文结构。
+    function hlWrapRange(doc, range, id, color) {
+      var w = hlWalker(doc), n, segs = [];
+      while ((n = w.nextNode())) {
+        var hit = false;
+        try { hit = range.intersectsNode(n); } catch (e) { hit = false; }
+        if (!hit || !n.nodeValue) continue;
+        var p = n.parentNode;
+        if (p && p.closest && p.closest("mark.pm-hl")) continue;   // 已有高亮：跳过，避免套娃
+        var s = (range.startContainer === n) ? range.startOffset : 0;
+        var e = (range.endContainer === n) ? range.endOffset : n.nodeValue.length;
+        if (e > s) segs.push({ node: n, s: s, e: e });
+      }
+      for (var i = segs.length - 1; i >= 0; i--) {
+        var sg = segs[i];
+        try {
+          var r = doc.createRange();
+          r.setStart(sg.node, sg.s);
+          r.setEnd(sg.node, sg.e);
+          var mk = doc.createElement("mark");
+          mk.className = "pm-hl" + (color && color !== "y" ? " pm-hl-" + color : "");
+          if (id) mk.setAttribute("data-hid", id);          // 配置里的高亮（本地标注）
+          else mk.setAttribute("data-c", color || "y");     // 编辑模式下直接写进文档的高亮
+          r.surroundContents(mk);
+        } catch (e2) {}
+      }
+    }
+    function hlUnwrap(m) {
+      var p = m.parentNode;
+      if (!p) return;
+      while (m.firstChild) p.insertBefore(m.firstChild, m);
+      p.removeChild(m);
+      try { p.normalize(); } catch (e) {}
+    }
+    function hlMarkTitle(doc, h) {
+      if (!doc) return;
+      var ms = doc.querySelectorAll('mark.pm-hl[data-hid="' + h.id + '"]');
+      for (var i = 0; i < ms.length; i++) {
+        ms[i].setAttribute("title", h.note ? ("备注：" + h.note) : "点击编辑高亮");
+      }
+    }
+
+    // ---- 恢复一篇文档的全部高亮 ----
+    function applyHighlightsFor(t) {
+      try {
+        var doc = hlDocOf(t);
+        if (!doc || !doc.body) return;
+        hlEnsureStyle(doc);
+        var items = hlItems(t);
+        for (var i = 0; i < items.length; i++) {
+          var h = items[i];
+          if (doc.querySelector('mark.pm-hl[data-hid="' + h.id + '"]')) continue;
+          var r = hlFindRange(doc, h);
+          if (!r) continue;
+          hlWrapRange(doc, r, h.id, h.color);
+          hlMarkTitle(doc, h);
+        }
+      } catch (e) {}
+    }
+
+    // ---- 气泡定位（坐标由 iframe 内 rect 换算到主窗口） ----
+    function hlPlace(rect) {
+      var p = document.getElementById("hlPop");
+      if (!p || !rect) return;
+      p.style.display = "block";
+      var w = p.offsetWidth || 246, h = p.offsetHeight || 120;
+      var cx = (rect.left + rect.right) / 2;
+      var left = cx - w / 2;
+      left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+      var top = rect.bottom + 8;
+      if (top + h > window.innerHeight - 8) top = rect.top - h - 8;
+      if (top < 8) top = 8;
+      p.style.left = Math.round(left) + "px";
+      p.style.top = Math.round(top) + "px";
+    }
+    function hlPaintSwatches(c) {
+      try {
+        var sw = document.querySelectorAll("#hlPop .hl-sw");
+        for (var i = 0; i < sw.length; i++) {
+          sw[i].classList.toggle("active", sw[i].getAttribute("data-c") === c);
+        }
+      } catch (e) {}
+    }
+    function closeHlPop() {
+      hlMode = null; hlPending = null; hlEditTab = null; hlEditId = null;
+      var p = document.getElementById("hlPop");
+      if (p) p.style.display = "none";
+    }
+
+    function hlNewId() {
+      return "h" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    }
+
+    // 把当前待处理选区变成一条高亮；成功后切换到「编辑」态，方便接着写备注
+    function hlCreateFromPending(color) {
+      if (!hlPending) return null;
+      var t = hlPending.t, doc = hlDocOf(t);
+      if (!doc || !doc.body) return null;
+      var range = hlPending.range;
+      if (!range) return null;
+      var anchor = hlMakeAnchor(doc, range);
+      if (!anchor) { setStatus("这段选不中正文文字，换个位置再试"); return null; }
+      var h = {
+        id: hlNewId(), color: color || hlColor, note: "",
+        text: anchor.text, prefix: anchor.prefix, suffix: anchor.suffix,
+        occ: anchor.occ, ts: Date.now()
+      };
+      var key = hlKey(t);
+      if (!HL[key]) HL[key] = [];
+      HL[key].push(h);
+      hlWrapRange(doc, range, h.id, h.color);
+      if (!doc.querySelector('mark.pm-hl[data-hid="' + h.id + '"]')) {
+        HL[key].pop();                      // 一个字都没标上（选区异常），不留空记录
+        if (!HL[key].length) delete HL[key];
+        setStatus("这段内容没能标上，换个位置再试");
+        return null;
+      }
+      hlMarkTitle(doc, h);
+      hlColor = h.color;
+      saveCfg({ hl_color: hlColor });
+      hlWrite();                            // 新建/删除/改色是低频动作，立刻落盘，防手快关窗口丢标注
+      hlMode = "edit"; hlEditTab = t; hlEditId = h.id; hlActiveId = h.id; hlPending = null;
+      var lab = document.getElementById("hlPopLabel");
+      if (lab) lab.textContent = "已高亮";
+      var del = document.getElementById("hlDel");
+      if (del) del.style.display = "";
+      hlPaintSwatches(h.color);
+      if (sbMode === "hl") renderHlList();
+      setStatus("已高亮（只存标注，不改 .md）");
+      return h;
+    }
+
+    function hlSetColor(c) {
+      if (!HL_COLORS[c]) return;
+      if (hlMode === "new" && hlPending) { hlCreateFromPending(c); return; }
+      if (hlMode !== "edit" || !hlEditTab) return;
+      var h = hlFindItem(hlEditTab, hlEditId);
+      if (!h) return;
+      h.color = c;
+      var doc = hlDocOf(hlEditTab);
+      if (doc) {
+        var ms = doc.querySelectorAll('mark.pm-hl[data-hid="' + h.id + '"]');
+        for (var i = 0; i < ms.length; i++) {
+          ms[i].className = "pm-hl" + (c === "y" ? "" : " pm-hl-" + c);
+        }
+      }
+      hlColor = c;
+      saveCfg({ hl_color: c });
+      hlWrite();
+      hlPaintSwatches(c);
+      updateHlChip();
+      if (sbMode === "hl") renderHlList();
+    }
+
+    function hlRemove(t, id) {
+      var doc = hlDocOf(t);
+      if (doc) {
+        var ms = doc.querySelectorAll('mark.pm-hl[data-hid="' + id + '"]');
+        for (var i = 0; i < ms.length; i++) hlUnwrap(ms[i]);
+      }
+      var key = hlKey(t), arr = HL[key] || [];
+      for (var j = arr.length - 1; j >= 0; j--) if (arr[j].id === id) arr.splice(j, 1);
+      if (!arr.length) delete HL[key];
+      hlWrite();
+      renderHlList();
+      if (hlEditId === id) closeHlPop();
+      setStatus("已删除高亮");
+    }
+
+    function hlJump(t, h) {
+      var doc = hlDocOf(t);
+      if (!doc) return;
+      var m = doc.querySelector('mark.pm-hl[data-hid="' + h.id + '"]');
+      if (!m) { setStatus("这条高亮在正文里找不到对应文字（源文件可能改过），可删掉重新标注"); return; }
+      try {
+        var w = doc.defaultView;
+        var r = m.getBoundingClientRect();
+        var y = r.top + (w.pageYOffset || 0) - 110;
+        w.scrollTo(0, Math.max(0, y));
+        m.classList.add("hl-flash");
+        setTimeout(function () { try { m.classList.remove("hl-flash"); } catch (e) {} }, 1500);
+      } catch (e) {}
+      hlActiveId = h.id;
+      renderHlList();
+    }
+
+    // ---- 侧栏「高亮」列表 ----
+    function renderHlList() {
+      var box = document.getElementById("hlList");
+      if (!box) return;
+      var t = activeTab();
+      box.innerHTML = "";
+      if (!t) {
+        box.innerHTML = '<div class="sb-err" style="color:#6e7781">（没有打开的文档）</div>';
+        return;
+      }
+      var items = hlItems(t);
+      // 文件里自带的高亮（==文字== / <mark style>）也要列出来，否则正文一片黄、侧栏却说"没有高亮"
+      var fileMks = [];
+      try {
+        var d0 = hlDocOf(t);
+        if (d0) {
+          var ms0 = d0.querySelectorAll("mark.pm-hl:not([data-hid])");
+          for (var fi = 0; fi < ms0.length; fi++) fileMks.push(ms0[fi]);
+        }
+      } catch (e) {}
+      if (!items.length && !fileMks.length) {
+        box.innerHTML = '<div class="sb-err" style="color:#6e7781;line-height:1.7">' +
+          "本文还没有高亮。<br>选中正文里的文字，点弹出的颜色即可标注；<br>再点高亮可改色、写备注、删除。</div>";
+        return;
+      }
+      var frag = document.createDocumentFragment();
+      for (var i = 0; i < items.length; i++) {
+        (function (h) {
+          var row = document.createElement("div");
+          row.className = "hl-item" + (hlActiveId === h.id ? " active" : "");
+          var dot = document.createElement("span");
+          dot.className = "hl-dot " + (h.color || "y");
+          var body = document.createElement("span");
+          body.className = "hl-body";
+          var tx = document.createElement("span");
+          tx.className = "hl-txt";
+          tx.textContent = (h.text || "").replace(/\s+/g, " ");
+          body.appendChild(tx);
+          if (h.note) {
+            var nt = document.createElement("span");
+            nt.className = "hl-nt";
+            nt.textContent = h.note;
+            body.appendChild(nt);
+          }
+          var del = document.createElement("button");
+          del.type = "button";
+          del.className = "hl-del2";
+          del.textContent = "\u00d7";
+          del.title = "删除这条高亮";
+          del.addEventListener("click", function (e) {
+            e.stopPropagation();
+            hlRemove(t, h.id);
+          });
+          row.title = h.note ? ("备注：" + h.note) : ((h.text || "").slice(0, 120));
+          row.appendChild(dot); row.appendChild(body); row.appendChild(del);
+          row.addEventListener("click", function () { hlJump(t, h); });
+          frag.appendChild(row);
+        })(items[i]);
+      }
+      box.appendChild(frag);
+      // ---- 文件里自带的高亮（只读列表；要删就进编辑模式再删） ----
+      for (var fj = 0; fj < fileMks.length; fj++) {
+        (function (mk) {
+          var row = document.createElement("div");
+          row.className = "hl-item";
+          var dot = document.createElement("span");
+          var c = mk.getAttribute("data-c") || "";
+          if (c && HL_COLORS[c]) dot.className = "hl-dot " + c;
+          else {
+            dot.className = "hl-dot";
+            var bg = (mk.style && mk.style.backgroundColor) || "";
+            dot.style.background = bg || "#ffd400";
+          }
+          var body = document.createElement("span");
+          body.className = "hl-body";
+          var tx = document.createElement("span");
+          tx.className = "hl-txt";
+          tx.textContent = (mk.textContent || "").replace(/\s+/g, " ").slice(0, 120);
+          var tag = document.createElement("span");
+          tag.className = "hl-file-tag";
+          tag.textContent = "文件中";
+          tag.title = "这条高亮已经写在 .md 里（==文字==），任何支持高亮的编辑器都能看到";
+          body.appendChild(tx); body.appendChild(tag);
+          var del = document.createElement("button");
+          del.type = "button";
+          del.className = "hl-del2";
+          del.textContent = "\u00d7";
+          del.title = "移除这处高亮（需在编辑模式下）";
+          del.addEventListener("click", function (e) {
+            e.stopPropagation();
+            if (!t.editing) { setStatus("这是写进文件的高亮，进入编辑模式后即可移除"); return; }
+            hlUnwrap(mk);
+            markDirty(t);
+            renderHlList();
+            setStatus("已移除这处高亮（保存后生效）");
+          });
+          row.title = tx.textContent;
+          row.appendChild(dot); row.appendChild(body); row.appendChild(del);
+          row.addEventListener("click", function () {
+            try {
+              var w = mk.ownerDocument.defaultView;
+              var r = mk.getBoundingClientRect();
+              w.scrollTo(0, Math.max(0, r.top + (w.pageYOffset || 0) - 110));
+              mk.classList.add("hl-flash");
+              setTimeout(function () { try { mk.classList.remove("hl-flash"); } catch (e) {} }, 1500);
+            } catch (e) {}
+          });
+          box.appendChild(row);
+        })(fileMks[fj]);
+      }
+    }
+
+    // ---- iframe 内交互：选区 → 出现颜色条；点高亮 → 编辑 ----
+    function hlOnMouseUp(t, ev) {
+      var tg = ev.target;
+      if (tg && tg.closest && tg.closest("mark.pm-hl")) return;
+      setTimeout(function () {
+        try {
+          var doc = hlDocOf(t);
+          if (!doc || !doc.body) return;
+          var sel = doc.getSelection ? doc.getSelection() : null;
+          if (!sel || sel.isCollapsed || !sel.rangeCount) {
+            closeHlPop();                     // 点在空白处：收起气泡（编辑中也是）
+            return;
+          }
+          var range = sel.getRangeAt(0);
+          if (!range.toString().replace(/\s/g, "")) return;
+          // 动作条上的「高亮」工具开着：选中即标注，不弹气泡
+          if (hlToolOn) {
+            if (t && t.editing) {
+              editToggleMark(t, range);       // 编辑模式：直接加进文档，保存时写成 ==文字==
+            } else {
+              hlPending = { t: t, range: range.cloneRange() };
+              hlMode = "new";
+              var made = hlCreateFromPending(hlColor);
+              closeHlPop();
+              try { sel.removeAllRanges(); } catch (e3) {}
+              if (made) setStatus("已高亮（" + (HL_NAMES[hlColor] || "黄") + "，只存标注不改 .md）");
+            }
+            return;
+          }
+          if (t && t.editing) { closeHlPop(); return; }   // 编辑模式里不自动弹气泡，免得挡住打字
+          var rects = range.getClientRects();
+          var rc = rects.length ? rects[rects.length - 1] : range.getBoundingClientRect();
+          if (!rc || (!rc.width && !rc.height)) return;
+          var fr = t.iframe.getBoundingClientRect();
+          hlMode = "new"; hlPending = { t: t, range: range.cloneRange() };
+          hlEditTab = null; hlEditId = null; hlActiveId = null;
+          var lab = document.getElementById("hlPopLabel");
+          if (lab) lab.textContent = "高亮";
+          var note = document.getElementById("hlNote");
+          if (note) note.value = "";
+          var del = document.getElementById("hlDel");
+          if (del) del.style.display = "none";
+          hlPaintSwatches(hlColor);
+          hlPlace({
+            left: fr.left + rc.left, right: fr.left + rc.right,
+            top: fr.top + rc.top, bottom: fr.top + rc.bottom
+          });
+        } catch (e) {}
+      }, 0);
+    }
+
+    function hlOpenEditor(t, mark) {
+      var id = mark.getAttribute("data-hid");
+      var h = hlFindItem(t, id);
+      if (!h) return;
+      hlMode = "edit"; hlEditTab = t; hlEditId = id; hlActiveId = id; hlPending = null;
+      var lab = document.getElementById("hlPopLabel");
+      if (lab) lab.textContent = "编辑高亮";
+      var note = document.getElementById("hlNote");
+      if (note) note.value = h.note || "";
+      var del = document.getElementById("hlDel");
+      if (del) del.style.display = "";
+      hlPaintSwatches(h.color || "y");
+      try {
+        var r = mark.getBoundingClientRect();
+        var fr = t.iframe.getBoundingClientRect();
+        hlPlace({
+          left: fr.left + r.left, right: fr.left + r.right,
+          top: fr.top + r.top, bottom: fr.top + r.bottom
+        });
+      } catch (e) {}
+      if (sbMode === "hl") renderHlList();
+    }
+
+    function hlAttachTo(t) {
+      try {
+        var doc = hlDocOf(t);
+        if (!doc || !doc.body) return;
+        hlEnsureStyle(doc);
+        if (doc.__pmHlWired) return;
+        doc.__pmHlWired = true;
+        doc.addEventListener("mouseup", function (ev) { hlOnMouseUp(t, ev); }, true);
+        doc.addEventListener("click", function (ev) {
+          if (t.editing) return;                    // 编辑时要能正常把光标放进高亮里改字
+          var el = ev.target;
+          var m = (el && el.closest) ? el.closest("mark.pm-hl") : null;
+          if (!m) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          hlOpenEditor(t, m);
+        }, true);
+        doc.addEventListener("keydown", function (ev) {
+          if (ev.key === "Escape") {
+            closeHlPop();
+            if (t.editing) { ev.preventDefault(); leaveEdit(t); }
+            return;
+          }
+          if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && (ev.key === "s" || ev.key === "S")) {
+            ev.preventDefault();                 // 焦点在正文里时 Ctrl+S 也要能存
+            saveTab(t);
+            return;
+          }
+          if ((ev.ctrlKey || ev.metaKey) && ev.shiftKey && (ev.key === "H" || ev.key === "h")) {
+            var sel = doc.getSelection ? doc.getSelection() : null;
+            if (sel && !sel.isCollapsed && sel.rangeCount) {
+              ev.preventDefault();
+              if (t.editing) { editToggleMark(t, sel.getRangeAt(0)); return; }
+              hlPending = { t: t, range: sel.getRangeAt(0).cloneRange() };
+              var h = hlCreateFromPending(hlColor);
+              if (h) closeHlPop();
+            }
+          }
+        }, true);
+        doc.addEventListener("scroll", function () {
+          if (hlMode === "new") closeHlPop();   // 选区位置会漂，直接收起，避免工具条指错地方
+        }, { passive: true });
+      } catch (e) {}
+    }
+
+    // ---- 气泡按钮 ----
+    setTimeout(function () {
+      try {
+        var pop = document.getElementById("hlPop");
+        if (!pop) return;
+        var note = document.getElementById("hlNote");
+        var sws = pop.querySelectorAll(".hl-sw");
+        for (var i = 0; i < sws.length; i++) {
+          (function (b) {
+            b.addEventListener("mousedown", function (e) { e.preventDefault(); });
+            b.addEventListener("click", function (e) {
+              e.preventDefault();
+              hlSetColor(b.getAttribute("data-c"));
+            });
+          })(sws[i]);
+        }
+        if (note) {
+          note.addEventListener("input", function () {
+            if (hlMode === "new" && hlPending) {
+              if (!hlCreateFromPending(hlColor)) return;
+            }
+            if (hlMode !== "edit" || !hlEditTab) return;
+            var h = hlFindItem(hlEditTab, hlEditId);
+            if (!h) return;
+            h.note = note.value;
+            hlMarkTitle(hlDocOf(hlEditTab), h);
+            hlSaveSoon();
+            if (sbMode === "hl") renderHlList();
+          });
+        }
+        var del = document.getElementById("hlDel");
+        if (del) del.addEventListener("click", function () {
+          if (hlMode === "edit" && hlEditTab && hlEditId) hlRemove(hlEditTab, hlEditId);
+        });
+        var done = document.getElementById("hlDone");
+        if (done) done.addEventListener("click", function () {
+          if (hlMode === "new" && hlPending && note && note.value.trim()) hlCreateFromPending(hlColor);
+          closeHlPop();
+        });
+        document.addEventListener("pointerdown", function (e) {
+          if (!hlMode) return;
+          if (pop.contains(e.target)) return;
+          var tg = e.target;
+          if (tg && tg.closest && tg.closest("#views")) return;  // iframe 内部另有处理
+          if (hlMode === "new" && hlPending && note && note.value.trim()) hlCreateFromPending(hlColor);
+          closeHlPop();
+        }, true);
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape") closeHlPop();
+        });
+        window.addEventListener("resize", function () { if (hlMode) closeHlPop(); });
+      } catch (e) {}
+    }, 0);
+
+    // ================= 编辑模式（点「保存」才写回源文件） =================
+    // 三条底线：
+    //  1. 预览、高亮、切标签都不会碰源文件；只有「保存」(Ctrl+S) 才写盘；
+    //  2. 保存时只重写被改过的块，没动过的块逐字节沿用原文（模板层的 data-l + 快照）；
+    //  3. 写盘前 Python 侧自动备份 .bak，并按原编码 / 原换行风格写回。
+    var EDITED = {};        // tid -> true：这个标签有未保存修改
+    var cfmResolve = null;
+
+    function pmOf(t) {
+      try {
+        return (t && t.iframe && t.iframe.contentWindow) ? (t.iframe.contentWindow.__pm || null) : null;
+      } catch (e) { return null; }
+    }
+    function editDocOf(t) {
+      try { return (t && t.iframe) ? t.iframe.contentDocument : null; } catch (e) { return null; }
+    }
+    function markDirty(t) {
+      if (!t) return;
+      EDITED[t.id] = true;
+      updateEditUI();
+    }
+
+    // ---- 通用确认弹窗：buttons = [{label, value, primary}]，返回选中的 value ----
+    function askConfirm(title, msg, buttons) {
+      return new Promise(function (resolve) {
+        var m = document.getElementById("cfmModal");
+        if (!m) { resolve(buttons[buttons.length - 1].value); return; }
+        document.getElementById("cfmTitle").textContent = title;
+        document.getElementById("cfmMsg").textContent = msg;
+        var box = document.getElementById("cfmBtns");
+        box.innerHTML = "";
+        cfmResolve = function (v) { m.style.display = "none"; cfmResolve = null; resolve(v); };
+        buttons.forEach(function (b) {
+          var el = document.createElement("button");
+          el.type = "button";
+          el.textContent = b.label;
+          if (b.primary) el.className = "primary";
+          el.addEventListener("click", function () { if (cfmResolve) cfmResolve(b.value); });
+          box.appendChild(el);
+        });
+        m.style.display = "flex";
+      });
+    }
+
+    function ensureEditStyle(doc) {
+      if (!doc || doc.getElementById("pm-edit-style")) return;
+      var st = doc.createElement("style");
+      st.id = "pm-edit-style";
+      st.textContent = [
+        "#content[contenteditable]{outline:2px dashed rgba(9,105,218,.28);outline-offset:16px;" +
+          "border-radius:2px;cursor:text;min-height:60vh}",
+        "#content[contenteditable]:focus{outline-color:rgba(9,105,218,.45)}",
+        "#content[contenteditable] mark.pm-hl{cursor:text}",
+        "body.pm-editing{padding-bottom:45vh}"
+      ].join("");
+      (doc.head || doc.documentElement).appendChild(st);
+    }
+
+    function updateEditUI() {
+      var t = activeTab();
+      var btn = document.getElementById("editBtn");
+      var sv = document.getElementById("saveBtn");
+      var on = !!(t && t.editing);
+      var dirty = !!(t && EDITED[t.id]);
+      // 别的标签可能还有没保存的改动：保存键不能因为切走了就消失
+      var anyDirty = false;
+      for (var q = 0; q < tabs.length; q++) if (EDITED[tabs[q].id]) anyDirty = true;
+      if (btn) {
+        btn.textContent = on ? "✎ 编辑中" : "✎ 编辑";
+        btn.classList.toggle("editing", on);
+        btn.title = on ? "退出编辑模式（Esc，有改动会先问你）"
+                       : "进入编辑模式：可直接改正文，改完点「保存」才写回源文件";
+      }
+      if (sv) {
+        sv.style.display = (on || anyDirty) ? "" : "none";
+        sv.disabled = !(dirty || anyDirty);
+        sv.style.opacity = (dirty || anyDirty) ? "1" : ".5";
+        sv.textContent = (dirty || anyDirty) ? "保存" : "已保存";
+      }
+      // 有未保存修改的标签挂个红点
+      for (var i = 0; i < tabs.length; i++) {
+        var el = tabs[i].el;
+        if (!el) continue;
+        var dot = el.querySelector(".dot");
+        if (EDITED[tabs[i].id]) {
+          if (!dot) {
+            dot = document.createElement("span");
+            dot.className = "dot";
+            dot.title = "有未保存的修改";
+            el.insertBefore(dot, el.querySelector(".x"));
+          }
+        } else if (dot && dot.parentNode) {
+          dot.parentNode.removeChild(dot);
+        }
+      }
+      if (dirty && document.getElementById("status")) {
+        setStatus("有未保存修改（Ctrl+S 保存）");
+      }
+    }
+
+    function wireEditEvents(t) {
+      var doc = editDocOf(t);
+      if (!doc || doc.__pmEditWired) return;
+      doc.__pmEditWired = true;
+      doc.addEventListener("input", function () {
+        if (!t.editing) return;
+        markDirty(t);
+      }, true);
+      // 粘贴统一转成纯文本，避免把外部网页的样式一股脑带进文档
+      doc.addEventListener("paste", function (ev) {
+        if (!t.editing) return;
+        try {
+          var txt = (ev.clipboardData || window.clipboardData).getData("text/plain");
+          if (txt == null) return;
+          ev.preventDefault();
+          doc.execCommand("insertText", false, txt);
+        } catch (e) {}
+      }, true);
+    }
+
+    function enterEdit(t) {
+      t = t || activeTab();
+      if (!t) { setStatus("先打开一个 .md 再编辑"); return; }
+      var pm = pmOf(t);
+      if (!pm) { setStatus("页面还没加载完，稍等一下再试"); return; }
+      var doc = editDocOf(t);
+      ensureEditStyle(doc);
+      try {
+        pm.content.setAttribute("contenteditable", "true");
+        pm.content.setAttribute("spellcheck", "false");
+        if (doc && doc.body) doc.body.classList.add("pm-editing");
+        wireEditEvents(t);
+        pm.content.focus();
+      } catch (e) { setStatus("进入编辑模式失败：" + e); return; }
+      t.editing = true;
+      closeHlPop();
+      updateEditUI();
+      setStatus("编辑中：直接改文字；改完点「保存」写回源文件（Ctrl+S）");
+    }
+
+    // 放弃改动：把正文按"上次保存/渲染的文本"重新画一遍
+    function revertTab(t) {
+      var pm = pmOf(t);
+      if (!pm) return;
+      try {
+        pm.render(pm.baseText());
+        applyTheme(t.iframe);
+        hlAttachTo(t);
+        applyHighlightsFor(t);
+      } catch (e) {}
+      delete EDITED[t.id];
+      updateEditUI();
+    }
+
+    function reallyLeave(t) {
+      var pm = pmOf(t), doc = editDocOf(t);
+      try {
+        if (pm) pm.content.removeAttribute("contenteditable");
+        if (doc && doc.body) doc.body.classList.remove("pm-editing");
+      } catch (e) {}
+      t.editing = false;
+      closeHlPop();
+      updateEditUI();
+      setStatus("已退出编辑（" + (t.name || "") + "）");
+    }
+
+    function leaveEdit(t) {
+      if (!EDITED[t.id]) { reallyLeave(t); return; }
+      askConfirm("还有未保存的修改", "「" + (t.name || "") + "」里有改动还没写回文件。要先保存吗？", [
+        { label: "取消", value: "cancel" },
+        { label: "放弃修改", value: "discard" },
+        { label: "保存并退出", value: "save", primary: true }
+      ]).then(function (v) {
+        if (v === "save") saveTab(t, { leave: true });
+        else if (v === "discard") { revertTab(t); reallyLeave(t); }
+      });
+    }
+
+    function toggleEdit() {
+      var t = activeTab();
+      if (!t) { setStatus("先打开一个 .md 再编辑"); return; }
+      if (t.editing) leaveEdit(t); else enterEdit(t);
+    }
+
+    function saveTab(t, opts) {
+      opts = opts || {};
+      if (opts && opts.leave) t = t || activeTab();
+      t = t || activeTab();
+      if (!t) return;
+      // 当前标签没改动、但别的标签有 → 保存那个（免得改动被"切走"后找不到）
+      if (!EDITED[t.id]) {
+        var other = null;
+        for (var oi = 0; oi < tabs.length; oi++) if (EDITED[tabs[oi].id]) { other = tabs[oi]; break; }
+        if (!other) { setStatus("没有需要保存的修改"); return; }
+        t = other;
+        setStatus("正在保存「" + (t.name || "") + "」…");
+      }
+      var pm = pmOf(t);
+      if (!pm) { setStatus("页面还没准备好"); return; }
+      if (!hasApi() || !window.pywebview.api.save_md) { setStatus("这个版本不支持保存，请更新到新版"); return; }
+      var text;
+      try { text = pm.buildText(); } catch (e) { setStatus("整理内容失败：" + e); return; }
+      if (text === pm.baseText()) {
+        delete EDITED[t.id];
+        updateEditUI();
+        setStatus("没有改动，无需保存");
+        if (opts.leave) reallyLeave(t);
+        return;
+      }
+      // 编辑模式里加的高亮（data-c）会写进文件；只读标注（data-hid）留在本机配置
+      var willWrite = 0;
+      try {
+        var _doc = editDocOf(t);
+        willWrite = _doc ? _doc.querySelectorAll("mark.pm-hl[data-c]").length : 0;
+      } catch (e0) {}
+
+      function doSave() {
+        setStatus("正在保存…");
+        window.pywebview.api.save_md(t.path, text).then(function (r) {
+          if (!r || r.error) { setStatus("保存失败：" + ((r && r.error) || "未知错误")); return; }
+          delete EDITED[t.id];
+          try {
+            pm.render(text);                 // 用刚写进文件的内容重画，快照基线随之更新
+            applyTheme(t.iframe);
+            hlAttachTo(t);
+            applyHighlightsFor(t);           // 本机只读标注重新贴回（它们没写进文件）
+            if (sbMode === "toc" && t.id === activeId) buildOutline(0);
+            if (sbMode === "hl" && t.id === activeId) renderHlList();
+          } catch (e) {}
+          updateEditUI();
+          if (t.editing) { try { pm.content.focus(); } catch (e) {} }   // 保存后接着写，不用再点一下
+          var nm = r.backup ? r.backup.split(/[\\\/]/).pop() : "";
+          setStatus(r.unchanged ? "内容没有变化" : ("已保存" + (nm ? "，原文件已备份为 " + nm : "")));
+          if (opts.leave) reallyLeave(t);
+        }).catch(function (e) {
+          setStatus("保存失败：" + (e && e.message ? e.message : e));
+        });
+      }
+
+      if (willWrite) {
+        askConfirm("保存到源文件",
+          "编辑模式里加的 " + willWrite + " 处高亮会一起写进文件（黄色写成 ==文字==，其它颜色写成 <mark>）。" +
+          "只读状态下做的标注和备注仍只存在本机，不会改动文件。要继续吗？",
+          [{ label: "取消", value: "no" }, { label: "继续保存", value: "yes", primary: true }]
+        ).then(function (v) { if (v === "yes") doSave(); });
+        return;
+      }
+      doSave();
+    }
+
+    // 编辑模式下直接给选区加/去高亮（高亮是文档的一部分，保存时写成 ==文字==）
+    function editToggleMark(t, range) {
+      var doc = editDocOf(t);
+      if (!doc) return;
+      var sc = range.startContainer;
+      var el = sc.nodeType === 1 ? sc : sc.parentNode;
+      var mk = (el && el.closest) ? el.closest("mark.pm-hl") : null;
+      if (mk && mk.contains(range.endContainer)) {
+        hlUnwrap(mk);
+        markDirty(t);
+        setStatus("已取消这处高亮（保存后生效）");
+        return;
+      }
+      if (!range.toString().replace(/\s/g, "")) { setStatus("先选中要高亮的文字"); return; }
+      hlWrapRange(doc, range, "", hlColor);
+      var made = doc.querySelector('mark.pm-hl[data-c]');
+      if (!made) { setStatus("这段选不中正文文字，换个位置再试"); return; }
+      markDirty(t);
+      setStatus("已高亮（保存后写进文件：==这段文字==）");
+    }
+
+    // 工具栏 / 快捷键
+    (function wireEditUI() {
+      try {
+        var eb = document.getElementById("editBtn");
+        if (eb) eb.addEventListener("click", function (e) { e.stopPropagation(); toggleEdit(); });
+        var sb = document.getElementById("saveBtn");
+        if (sb) sb.addEventListener("click", function (e) { e.stopPropagation(); saveTab(); });
+        document.addEventListener("keydown", function (e) {
+          var t = activeTab();
+          if (!t) return;
+          if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === "s" || e.key === "S")) {
+            e.preventDefault();
+            if (EDITED[t.id] || t.editing) saveTab(t);
+            return;
+          }
+          if (e.key === "Escape" && t.editing && !cfmResolve) {
+            e.preventDefault();
+            leaveEdit(t);
+          }
+        });
+      } catch (e) {}
+    })();
+
+    // 关窗口前：有未保存的修改就先问。返回 true 表示"已拦下，别关"。
+    window.__pmMaybeClose = function () {
+      var dirty = [];
+      for (var i = 0; i < tabs.length; i++) if (EDITED[tabs[i].id]) dirty.push(tabs[i]);
+      if (!dirty.length) return false;
+      askConfirm("还有未保存的修改",
+        dirty.map(function (x) { return x.name; }).join("、") + " 有改动还没写回文件。关闭前要保存吗？",
+        [{ label: "取消", value: "cancel" },
+         { label: "不保存，直接关闭", value: "close" },
+         { label: "全部保存并关闭", value: "save", primary: true }]
+      ).then(function (v) {
+        if (v === "close") {
+          for (var id in EDITED) delete EDITED[id];
+          try { window.pywebview.api.window_close(); } catch (e) {}
+        } else if (v === "save") {
+          var list = dirty.slice(), i = 0;
+          (function step() {
+            if (i >= list.length) {
+              try { window.pywebview.api.window_close(); } catch (e) {}
+              return;
+            }
+            var tab = list[i++];
+            var pm = pmOf(tab);
+            var text = pm ? pm.buildText() : "";
+            window.pywebview.api.save_md(tab.path, text)
+              .then(function () { step(); }).catch(function () { step(); });
+          })();
+        }
+      });
+      return true;
+    };
+
+    // ---- 标签栏下方的动作条：最左侧栏开关，中间「编辑 / 高亮」----
+    function updateHlChip() {
+      var chip = document.getElementById("hlChip");
+      if (chip) chip.style.background = HL_HEX[hlColor] || HL_HEX.y;
+      var b = document.getElementById("hlChipBtn");
+      if (b) b.title = "当前高亮颜色：" + (HL_NAMES[hlColor] || "黄") + "（点这里换色）";
+    }
+    function updateHlToolUI() {
+      var b = document.getElementById("hlBtn");
+      if (b) {
+        b.classList.toggle("on", hlToolOn);
+        b.title = hlToolOn
+          ? "高亮工具已开启：选中文字立刻标注；再点一次关闭"
+          : "高亮工具：开启后选中文字立刻用当前颜色标注";
+      }
+      updateHlChip();
+    }
+    function toggleHlTool(on) {
+      hlToolOn = (typeof on === "boolean") ? on : !hlToolOn;
+      updateHlToolUI();
+      closeHlPop();
+      if (!hlToolOn) { setStatus("已退出高亮模式"); return; }
+      var t = activeTab();
+      setStatus((t && t.editing)
+        ? "高亮模式：选中即高亮，保存后写进文件"
+        : "高亮模式：选中即标注（" + (HL_NAMES[hlColor] || "黄") + "）");
+    }
+    function closeHlPick() {
+      var p = document.getElementById("hlPick");
+      if (p) p.style.display = "none";
+    }
+    function openHlPick(anchor) {
+      var p = document.getElementById("hlPick");
+      if (!p || !anchor) return;
+      p.style.display = "block";
+      var r = anchor.getBoundingClientRect();
+      var w = p.offsetWidth, h = p.offsetHeight;
+      var left = Math.round(r.left + r.width / 2 - w / 2);
+      if (left < 6) left = 6;
+      if (left + w > window.innerWidth - 6) left = window.innerWidth - w - 6;
+      var top = Math.round(r.bottom + 6);
+      if (top + h > window.innerHeight - 6) top = Math.round(r.top - h - 6);
+      if (top < 6) top = 6;
+      p.style.left = left + "px";
+      p.style.top = top + "px";
+      var sw = p.querySelectorAll(".hl-sw");
+      for (var i = 0; i < sw.length; i++) {
+        sw[i].classList.toggle("active", sw[i].getAttribute("data-c") === hlColor);
+      }
+    }
+    (function wireActbar() {
+      try {
+        var st = document.getElementById("sbToggleBtn");
+        if (st) st.addEventListener("click", function (e) { e.stopPropagation(); toggleSbPanel(); });
+        var hb = document.getElementById("hlBtn");
+        if (hb) hb.addEventListener("click", function (e) { e.stopPropagation(); toggleHlTool(); });
+        var cb = document.getElementById("hlChipBtn");
+        var pk = document.getElementById("hlPick");
+        if (cb) cb.addEventListener("click", function (e) {
+          e.stopPropagation();
+          if (pk && pk.style.display === "block") { closeHlPick(); return; }
+          openHlPick(cb);
+        });
+        if (pk) pk.addEventListener("click", function (e) {
+          e.stopPropagation();
+          var b = (e.target && e.target.closest) ? e.target.closest(".hl-sw") : null;
+          if (!b) return;
+          var c = b.getAttribute("data-c");
+          if (!HL_COLORS[c]) return;
+          hlColor = c;
+          saveCfg({ hl_color: c });
+          updateHlChip();
+          closeHlPick();
+          if (!hlToolOn) toggleHlTool(true);
+          else setStatus("高亮颜色：" + (HL_NAMES[c] || "") + " — 选中文字即可标注");
+        });
+        document.addEventListener("click", function (e) {
+          if (!pk || pk.style.display !== "block") return;
+          if (cb && cb.contains(e.target)) return;
+          closeHlPick();
+        });
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape") closeHlPick();
+          if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey &&
+              (e.key === "b" || e.key === "B")) {
+            e.preventDefault();
+            toggleSbPanel();
+          }
+          // 字号快捷键：Ctrl+= / Ctrl+- / Ctrl+0（和 Ctrl+滚轮 同一套缩放）
+          if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+            if (e.key === "=" || e.key === "+") { e.preventDefault(); stepScale(1); }
+            else if (e.key === "-" || e.key === "_") { e.preventDefault(); stepScale(-1); }
+            else if (e.key === "0") { e.preventDefault(); setScale(1); }
+          }
+        });
+        // Ctrl+滚轮：自己接管，只缩放正文；界面之所以不跟着变大，是因为 zoom 只加在
+        // 每个标签页 iframe 的 <html> 上（父页面一个像素都不缩放）。preventDefault
+        // 同时也挡住 WebView2 自带的整页缩放，避免两套缩放叠加。
+        document.addEventListener("wheel", function (e) {
+          if (!(e.ctrlKey || e.metaKey)) return;
+          e.preventDefault();
+          if (e.stopPropagation) e.stopPropagation();
+          stepScale(e.deltaY < 0 ? 1 : -1);
+        }, { passive: false });
+        var zo = document.getElementById("zoomOutBtn");
+        if (zo) zo.addEventListener("click", function (e) { e.stopPropagation(); stepScale(-1); });
+        var zi = document.getElementById("zoomInBtn");
+        if (zi) zi.addEventListener("click", function (e) { e.stopPropagation(); stepScale(1); });
+        var zp = document.getElementById("zoomPct");
+        if (zp) zp.addEventListener("click", function (e) { e.stopPropagation(); setScale(1); });
+        var fb = document.getElementById("fitBtn");
+        if (fb) fb.addEventListener("click", function (e) { e.stopPropagation(); toggleFit(); });
+        // 窗口 / 侧栏宽度变化时，「适应窗口」跟着重算
+        var vbox = document.getElementById("views");
+        window.addEventListener("resize", function () { if (fitWindow) scheduleFit(); });
+        if (vbox && window.ResizeObserver) {
+          try { new ResizeObserver(function () { if (fitWindow) scheduleFit(); }).observe(vbox); } catch (e2) {}
+        }
+        updateZoomUI();
+        // 侧栏开合可能来自任何入口（图标 / 页签 / × / 选文件夹），用 observer 统一同步按钮状态
+        var sb = document.getElementById("sidebar");
+        if (sb && window.MutationObserver) {
+          new MutationObserver(updateSbToggle).observe(sb, { attributes: true, attributeFilter: ["class"] });
+        }
+        updateSbToggle();
+        updateHlToolUI();
+      } catch (e) {}
+    })();
+
     window.__addTab = function (p) { addTab(p); };
+    // 调试/自检用：外部可以直接读写正文字号（不参与正常交互）
+    window.__pmZoom = {
+      set: function (v) { setScale(v); },
+      step: function (d) { stepScale(d); },
+      fit: function () { toggleFit(); },
+      value: function () { return fontScale; },
+      fitting: function () { return fitWindow; }
+    };
     // 消费在 DOM/脚本就绪前到达的待处理项
     window.__pending.forEach(function (p) { addTab(p); });
     window.__pending.length = 0;
   </script>
+  <div id="hlPop">
+    <div class="hl-row1">
+      <span class="hl-label" id="hlPopLabel">高亮</span>
+      <span class="hl-swatches">
+        <button type="button" class="hl-sw y" data-c="y" title="黄色"></button>
+        <button type="button" class="hl-sw r" data-c="r" title="红色"></button>
+        <button type="button" class="hl-sw g" data-c="g" title="绿色"></button>
+        <button type="button" class="hl-sw b" data-c="b" title="蓝色"></button>
+        <button type="button" class="hl-sw v" data-c="v" title="紫色"></button>
+        <button type="button" class="hl-sw p" data-c="p" title="品红"></button>
+        <button type="button" class="hl-sw o" data-c="o" title="橙色"></button>
+        <button type="button" class="hl-sw n" data-c="n" title="灰色"></button>
+      </span>
+    </div>
+    <textarea class="hl-note" id="hlNote" placeholder="备注（可留空，不会改动 .md）" spellcheck="false"></textarea>
+    <div class="hl-acts">
+      <button type="button" class="hl-del" id="hlDel">删除</button>
+      <button type="button" id="hlDone">完成</button>
+      <span class="hl-hint" id="hlHint">Ctrl+Shift+H</span>
+    </div>
+  </div>
+  <div id="cfmModal">
+    <div class="box">
+      <h3 id="cfmTitle">提示</h3>
+      <p id="cfmMsg"></p>
+      <div id="cfmBtns"></div>
+    </div>
+  </div>
   <div id="fbModal">
     <div class="box">
       <h3>反馈问题</h3>
@@ -1495,6 +4105,7 @@
     <div class="box">
       <h3>关于 PureMD</h3>
       <p>Markdown 纯预览工具：双击即看，只读打开，绝不改写源文件。</p>
+      <p>选中文字即可高亮并写备注，标注只保存在本地配置，源 .md 不会改动。</p>
       <span class="ver" id="aboutVer">PureMD v1.0</span>
       <p>作者邮箱：xkwwang@126.com</p>
       <button type="button" onclick="copyAboutEmail()">复制邮箱</button>
