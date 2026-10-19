@@ -548,7 +548,7 @@ def save_config(obj):
 
 
 APP_NAME = "PureMD"
-APP_VERSION = "1.5.4"
+APP_VERSION = "1.5.5"
 # 发布到 GitHub 后，把这里填成你的 Releases API 地址（留空则不做更新检查），例如：
 #   https://api.github.com/repos/<你的用户名>/<仓库名>/releases/latest
 UPDATE_CHECK_URL = "https://api.github.com/repos/xkwwang/PureMD/releases/latest"
@@ -954,26 +954,62 @@ class Api:
     # 累计位移的好处：即使调用排队、丢帧，最后落地的那次一定对应正确的最终几何。
     _resize_gid = -1
     _resize_origin = None      # (L, T, R, B) 物理像素
+    _resize_base = (0.0, 0.0)  # 位移基准（最大化还原那一帧的 dx/dy）
     _resize_scale = 1.0        # 物理像素 / CSS 像素（兼容 DPI 缩放）
 
-    def window_resize_to(self, gid, edge, dx, dy, css_w=None, css_h=None):
-        """应用「相对拖拽起点的累计位移」（dx/dy 为 CSS 像素）。"""
+    def window_resize_to(self, gid, edge, dx, dy, css_w=None, css_h=None, mx=None, my=None):
+        """应用「相对拖拽起点的累计位移」（dx/dy 为 CSS 像素）。
+
+        mx / my 是鼠标当前的屏幕坐标：只在「最大化 / 贴靠」状态下拖边缘时用得上——
+        此时系统不让窗口跟着鼠标变尺寸（表现为拖了没反应），先还原成普通窗口，
+        再把被拖的那条边直接对齐到鼠标位置，从这一帧起继续跟随，手感与原生一致。
+        """
         try:
             h = self._hwnd() or _find_puremd_hwnd()
             if not h:
-                return False
-            if ctypes.windll.user32.IsZoomed(h):
                 return False
             try:
                 gid = int(gid)
             except Exception:
                 gid = Api._resize_gid
+            if ctypes.windll.user32.IsZoomed(h):
+                # 最大化：先还原（还原后的矩形才是可自由缩放的状态）
+                try:
+                    ctypes.windll.user32.ShowWindow(h, 9)   # SW_RESTORE
+                except Exception:
+                    return False
+                rect = (ctypes.c_long * 4)()
+                ctypes.windll.user32.GetWindowRect(h, ctypes.byref(rect))
+                L, T, R, B = int(rect[0]), int(rect[1]), int(rect[2]), int(rect[3])
+                # 把被拖动的边/角对齐到鼠标当前位置，避免"还原后窗口尺寸突跳"
+                edge_s = str(edge or "")
+                try:
+                    if "e" in edge_s and mx is not None: R = int(mx)
+                    if "w" in edge_s and mx is not None: L = int(mx)
+                    if "s" in edge_s and my is not None: B = int(my)
+                    if "n" in edge_s and my is not None: T = int(my)
+                except Exception:
+                    pass
+                if R - L < _MIN_W:
+                    R = L + _MIN_W if "w" not in edge_s else L + _MIN_W
+                if B - T < _MIN_H:
+                    B = T + _MIN_H if "n" not in edge_s else T + _MIN_H
+                try:
+                    ctypes.windll.user32.SetWindowPos(h, None, L, T, R - L, B - T, 0x0004)
+                except Exception:
+                    pass
+                Api._resize_origin = (L, T, R, B)
+                Api._resize_base = (float(dx or 0), float(dy or 0))   # 之后按"相对这一帧"的位移算
+                Api._resize_gid = gid
+                Api._resize_scale = _dpi_scale(h)
+                return True
             if gid != Api._resize_gid:
                 # 新手势：记录起点矩形，并按 CSS 宽高反推「每 CSS 像素多少物理像素」
                 rect = (ctypes.c_long * 4)()
                 ctypes.windll.user32.GetWindowRect(h, ctypes.byref(rect))
                 L0, T0, R0, B0 = int(rect[0]), int(rect[1]), int(rect[2]), int(rect[3])
                 Api._resize_origin = (L0, T0, R0, B0)
+                Api._resize_base = (0.0, 0.0)
                 Api._resize_gid = gid
                 k = 1.0
                 try:
@@ -984,13 +1020,16 @@ class Api:
                             k = 1.0
                 except Exception:
                     k = 1.0
+                if abs(k - 1.0) < 1e-6:
+                    k = _dpi_scale(h)      # CSS 宽高不可信时，退回系统 DPI 比例
                 Api._resize_scale = k
             org = Api._resize_origin
             if not org:
                 return False
             k = Api._resize_scale or 1.0
-            DX = int(round(float(dx) * k))
-            DY = int(round(float(dy) * k))
+            bx, by = Api._resize_base or (0.0, 0.0)
+            DX = int(round((float(dx) - bx) * k))
+            DY = int(round((float(dy) - by) * k))
             L, T, R, B = org
             edge = str(edge or "")
             if "w" in edge:
@@ -1129,6 +1168,20 @@ SWP_NOMOVE = 0x0002
 SWP_NOSIZE = 0x0001
 SWP_NOZORDER = 0x0004
 _MIN_W, _MIN_H = 480, 340
+
+
+def _dpi_scale(hwnd):
+    """窗口所在显示器的缩放比例（物理像素 / CSS 像素）；拿不到就按 1.0。"""
+    try:
+        u = ctypes.windll.user32
+        get_dpi = getattr(u, "GetDpiForWindow", None)
+        if get_dpi is not None:
+            d = int(get_dpi(ctypes.c_void_p(hwnd)))
+            if 48 < d < 480:
+                return d / 96.0
+    except Exception:
+        pass
+    return 1.0
 
 
 def _own_main_hwnd():

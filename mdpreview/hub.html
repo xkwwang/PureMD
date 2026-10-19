@@ -1097,7 +1097,7 @@
       function done() { sending = false; flushResize(); }
       try {
         var p = window.pywebview.api.window_resize_to(
-          m.gid, m.e, m.dx, m.dy, window.outerWidth, window.outerHeight);
+          m.gid, m.e, m.dx, m.dy, window.outerWidth, window.outerHeight, m.mx, m.my);
         if (p && p.then) p.then(done, done); else done();
       } catch (e) { done(); }
     }
@@ -1116,7 +1116,8 @@
       }
       pushResize({
         gid: resizing.gid, e: resizing.edge,
-        dx: ev.screenX - resizing.sx, dy: ev.screenY - resizing.sy
+        dx: ev.screenX - resizing.sx, dy: ev.screenY - resizing.sy,
+        mx: ev.screenX, my: ev.screenY
       });
     }
     function onUp() {
