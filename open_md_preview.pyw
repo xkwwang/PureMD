@@ -548,7 +548,7 @@ def save_config(obj):
 
 
 APP_NAME = "PureMD"
-APP_VERSION = "1.5.5"
+APP_VERSION = "1.5.6"
 # 发布到 GitHub 后，把这里填成你的 Releases API 地址（留空则不做更新检查），例如：
 #   https://api.github.com/repos/<你的用户名>/<仓库名>/releases/latest
 UPDATE_CHECK_URL = "https://api.github.com/repos/xkwwang/PureMD/releases/latest"
@@ -1809,7 +1809,8 @@ def main():
             r = ctypes.windll.user32.MessageBoxW(
                 0,
                 "这是一个 PureMD 纯预览工具：\n"
-                "· 只读打开，绝不改动你的 .md 源文件\n"
+                "· 默认只读、不主动改动你的 .md 源文件\n"
+                "（只有编辑模式里手动点保存才写回，且只改动过的段落）\n"
                 "· 不生成任何临时文件\n"
                 "· 多个 .md 会集中在同一个窗口的标签页里\n\n"
                 "现在要把 .md 文件关联到它吗？关联后双击任意 .md 即可直接预览。\n\n"
