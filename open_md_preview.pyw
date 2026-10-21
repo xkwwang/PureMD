@@ -557,7 +557,7 @@ UPDATE_CHECK_URL = "https://api.github.com/repos/xkwwang/PureMD/releases/latest"
 def _ver_key(s):
     """把 "v1.2.3-beta.1" 之类的版本号转成可比较的元组 (1,2,3)；非数字段按 0，忽略预发行后缀。"""
     s = (s or "").strip().lstrip("vV")
-    core = re.split(r"[-+_ ]", s, 1)[0]
+    core = re.split(r"[-+_ ]", s, maxsplit=1)[0]
     nums = []
     for p in core.split("."):
         d = "".join(ch for ch in p if ch.isdigit())
@@ -1541,7 +1541,10 @@ def start_hub(first_payload):
                 pass
     except Exception:
         pass
-    # 仅允许标题栏（.pywebview-drag-region）拖动窗口，避免点工具栏/标签误拖窗口
+    # 仅允许标题栏（hub.html 里的 .pm-drag-region）拖动窗口，避免点工具栏/标签误拖窗口。
+    # 注意：标记类名不可使用 .pywebview-drag-region——那是 pywebview 内置 easy_drag 的
+    # 选择器（body mousedown 监听无条件注册，easy_drag=False 也关不掉），复用它会激活
+    # pywebview 那条坏掉的 move 链路并在后台持续抛错。详见 hub.html 拖动处的注释。
     try:
         webview.settings['DRAG_REGION_DIRECT_TARGET_ONLY'] = True
     except Exception:

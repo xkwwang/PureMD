@@ -845,13 +845,13 @@
 </head>
 <body>
   <div id="chrome">
-    <div id="titlebar" class="pywebview-drag-region">
-      <div class="drag-area pywebview-drag-region">
-        <svg class="app-icon pywebview-drag-region" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+    <div id="titlebar" class="pm-drag-region">
+      <div class="drag-area pm-drag-region">
+        <svg class="app-icon pm-drag-region" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
           <rect x="1.5" y="1.5" width="21" height="21" rx="5.5" fill="#0a84ff"/>
           <path d="M7 17 V8 L12 12.5 L17 8 V17" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        <span class="app-title pywebview-drag-region">PureMD</span>
+        <span class="app-title pm-drag-region">PureMD</span>
       </div>
       <div id="topbar">
         <button class="toolbtn" id="openBtn">打开</button>
@@ -995,9 +995,16 @@
     }
 
     /* ---- 标题栏拖动（自建实现，不依赖 pywebview 内置 easy_drag） ---- */
+    /* 标记类名必须是 pm-drag-region，绝不能改回 pywebview-drag-region：
+       后者是 pywebview 内置 easy_drag 的选择器，其 body mousedown 监听是无条件
+       注册的（easy_drag=False 只关"整窗拖动"，关不掉这条区域拖动路径）。一旦复用
+       该类名，每次拖标题栏都会触发 pywebview 的 pywebviewMoveWindow 桥调用 →
+       window.move(x, y) → winforms 的 SetWindowPos：该链路本身就是坏的（move()
+       收绝对坐标而 easy_drag 传的是位移量，且调用参数不匹配），会在后台持续抛错；
+       而本项目的 window_drag_start / window_move 语义正确，两条路径绝不能共存。 */
     var dragging = false, sx = 0, sy = 0;
     function inDragRegion(el) {
-      try { return !!(el && el.closest && el.closest(".pywebview-drag-region")); } catch (e) { return false; }
+      try { return !!(el && el.closest && el.closest(".pm-drag-region")); } catch (e) { return false; }
     }
     document.addEventListener("mousedown", function (ev) {
       if (ev.button !== 0) return;
