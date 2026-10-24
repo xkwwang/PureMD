@@ -110,9 +110,21 @@
     box-shadow: 0 4px 16px rgba(0, 0, 0, .18); padding: 4px;
   }
   #tablist .li {
-    display: block; padding: 6px 10px; border-radius: 4px; cursor: pointer;
-    font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 4px; cursor: pointer;
+    font-size: 13px; white-space: nowrap; overflow: hidden;
   }
+  #tablist .li .tl-nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  #tablist .li .tl-x {
+    flex: 0 0 auto; width: 20px; height: 20px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; line-height: 1; color: #8b949e; cursor: pointer;
+    -webkit-user-select: none; user-select: none;
+  }
+  #tablist .li .tl-x:hover { background: #ffebe9; color: #cf222e; }
+  body.dark #tablist .li .tl-x { color: #8b949e; }
+  body.dark #tablist .li .tl-x:hover { background: #5a2a2a; color: #ff7b72; }
+  body.beige #tablist .li .tl-x { color: #8a7a5e; }
+  body.beige #tablist .li .tl-x:hover { background: #ecd9b0; color: #a04030; }
   #tablist .li:hover { background: #eaeef2; }
   #tablist .li.active { background: #eaeef2; font-weight: 600; }
   body.dark #tablist { background: #161b22; border-color: #30363d; box-shadow: 0 4px 16px rgba(0,0,0,.5); }
@@ -500,6 +512,8 @@
     body:not(.light):not(.beige) #tablist { background: #161b22; border-color: #30363d; }
     body:not(.light):not(.beige) #tablist .li:hover,
     body:not(.light):not(.beige) #tablist .li.active { background: #30363d; }
+    body:not(.light):not(.beige) #tablist .li .tl-x { color: #8b949e; }
+    body:not(.light):not(.beige) #tablist .li .tl-x:hover { background: #5a2a2a; color: #ff7b72; }
     body:not(.light):not(.beige) .popmenu { background: #161b22; border-color: #30363d; }
     body:not(.light):not(.beige) .popmenu .hli:hover { background: #30363d; }
     body:not(.light):not(.beige) iframe { background: #0d1117; }
@@ -669,6 +683,19 @@
   .sb-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .sb-err { color: #cf222e; font-size: 12px; padding: 6px 10px; }
   body.dark .sb-err { color: #f85149; }
+  /* 文件行行尾的关闭按钮：只有该文件已在标签页里打开时才显示 */
+  .sb-close {
+    flex: 0 0 auto; display: none; align-items: center; justify-content: center;
+    width: 18px; height: 18px; margin-right: -2px; border-radius: 4px;
+    font-size: 13px; line-height: 1; color: #6e7781; cursor: pointer;
+    -webkit-user-select: none; user-select: none;
+  }
+  .sb-row.file.opened .sb-close { display: inline-flex; }
+  .sb-close:hover { background: #ffebe9; color: #cf222e; }
+  body.dark .sb-close { color: #8b949e; }
+  body.dark .sb-close:hover { background: #5a2a2a; color: #ff7b72; }
+  body.beige .sb-close { color: #8a7a5e; }
+  body.beige .sb-close:hover { background: #ecd9b0; color: #a04030; }
 
   /* ---- 侧栏宽度拖拽条：贴在侧栏右边缘外侧（净占宽 0，不挡树里的滚动条） ---- */
   #sbResizer {
@@ -1476,6 +1503,7 @@
       updateNav();
       saveSession();
       scheduleTreeSync(t);      // 侧栏文件树自动切到该文件所属文件夹并高亮它
+      syncTreeCloseBtns();      // 新打开的文件，行尾 × 显形
     }
 
     // ---- 阅读位置记忆：切换标签时记住滚动位置，切回时恢复 ----
@@ -1648,9 +1676,19 @@
           (function (t) {
             var d = document.createElement("div");
             d.className = "li" + (t.id === activeId ? " active" : "");
-            d.textContent = t.name;
             d.title = t.name;
+            var nm = document.createElement("span");
+            nm.className = "tl-nm"; nm.textContent = t.name;
+            var x = document.createElement("span");
+            x.className = "tl-x"; x.textContent = "×"; x.title = "关闭这个文件";
+            d.appendChild(nm); d.appendChild(x);
             d.addEventListener("click", function () { activate(t.id); toggleTabList(false); });
+            // 行尾 × ：直接关掉这个标签。列表保持展开，closeTab→activate 内部会
+            // refreshTabListIfOpen 自动刷新，于是可以连着关好几个
+            x.addEventListener("click", function (e) {
+              e.stopPropagation();
+              closeTab(t.id);
+            });
             box.appendChild(d);
           })(tabs[i]);
         }
@@ -1816,10 +1854,12 @@
           '<div class="empty">没有打开的文档 &mdash; 双击任意 .md 即可在此打开</div>';
         locatePath = null;
         markTreeFile("");          // 没有打开的文件了，清掉树里的选中态
+        syncTreeCloseBtns();       // 文件行的 × 也一并收起
         tocItems = []; tocTabId = null;      // 大纲也清掉，别留着上一篇的标题
         var tocBox = document.getElementById("toc");
         if (tocBox) tocBox.innerHTML = '<div class="sb-err" style="color:#6e7781">（没有打开的文档）</div>';
         updateNav();
+        refreshTabListIfOpen();   // ☰ 列表若开着，刷新成"没有打开的文档"
         saveSession();
         return;
       }
@@ -1830,6 +1870,7 @@
       else activate(tabs[Math.max(0, idx - 1)].id);
       updateNav();
       saveSession();
+      syncTreeCloseBtns();        // 被关文件行尾的 × 收起
     }
 
     function applyTheme(iframe) {
@@ -2373,7 +2414,8 @@
                       (kind === "folder"
                         ? '<span class="sb-ico">📁</span>'
                         : '<span class="sb-ico-file"></span>') +
-                      '<span class="sb-name"></span>';
+                      '<span class="sb-name"></span>' +
+                      (kind === "file" ? '<span class="sb-close" title="关闭这个文件">&times;</span>' : '');
       row.querySelector(".sb-name").textContent = name;
       return row;
     }
@@ -2420,11 +2462,22 @@
           var row = makeRow(name, "file", depth);
           row.dataset.path = full;
           row.addEventListener("click", function (e) { e.stopPropagation(); openSidebarFile(full); });
+          // 行尾 × ：关掉这个文件对应的标签（只有该文件已打开时才可见）
+          var xb = row.querySelector(".sb-close");
+          if (xb) xb.addEventListener("click", function (e) {
+            e.stopPropagation();
+            var t = null;
+            for (var i = 0; i < tabs.length; i++) {
+              if (tabs[i].path && expKey(tabs[i].path) === expKey(full)) { t = tabs[i]; break; }
+            }
+            if (t) closeTab(t.id);
+          });
           frag.appendChild(row);
         });
         container.appendChild(frag);
         // 子目录是异步渲染的，渲染完再尝试高亮当前文件
         if (locatePath) markTreeFile(locatePath, container);
+        syncTreeCloseBtns(container);
       });
     }
     // ---- 打开文件时自动定位到它所在的文件夹 ----
@@ -2446,6 +2499,22 @@
               try { rows[i].scrollIntoView({ block: "center" }); } catch (e) {}
             }
           }
+        }
+      } catch (e) {}
+    }
+    // ---- 文件行行尾的关闭按钮：只在该文件已打开（有对应标签）时才显示 ----
+    function syncTreeCloseBtns(scope) {
+      try {
+        var box = scope || document.getElementById("tree");
+        if (!box) return;
+        var open = {};
+        for (var i = 0; i < tabs.length; i++) {
+          if (tabs[i].path) open[expKey(tabs[i].path)] = true;
+        }
+        var rows = box.querySelectorAll(".sb-row.file");
+        for (var j = 0; j < rows.length; j++) {
+          var p = rows[j].dataset.path;
+          rows[j].classList.toggle("opened", !!(p && open[expKey(p)]));
         }
       } catch (e) {}
     }
