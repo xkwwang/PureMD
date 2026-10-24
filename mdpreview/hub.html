@@ -127,6 +127,7 @@
   body.beige #tablist .li .tl-x:hover { background: #ecd9b0; color: #a04030; }
   #tablist .li:hover { background: #eaeef2; }
   #tablist .li.active { background: #eaeef2; font-weight: 600; }
+  #tablist .li.dragging { opacity: .45; }
   body.dark #tablist { background: #161b22; border-color: #30363d; box-shadow: 0 4px 16px rgba(0,0,0,.5); }
   body.dark #tablist .li:hover, body.dark #tablist .li.active { background: #30363d; }
   body.beige #tablist { background: #f4ecd8; border-color: #d8cba8; }
@@ -1645,6 +1646,47 @@
       } catch (e) {}
     }
 
+    // 垂直版插入点：☰ 列表里被拖项应插到指针上方第一个「中线在指针之下」的项之前
+    function dragAfterElementY(container, y) {
+      var els = container.querySelectorAll(".li:not(.dragging)");
+      for (var i = 0; i < els.length; i++) {
+        if (!els[i].dataset || !els[i].dataset.tid) continue;   // 跳过「(没有打开的文档)」占位
+        var b = els[i].getBoundingClientRect();
+        if (y < b.top + b.height / 2) return els[i];
+      }
+      return null;
+    }
+    // 拖放后，让 tabs 数组顺序与 ☰ 列表的顺序一致，并同步顶部标签条 DOM
+    function syncTabOrderFromList() {
+      try {
+        var box = document.getElementById("tablist");
+        var strip = document.getElementById("tabs");
+        if (!box || !strip) return;
+        var ids = [];
+        var kids = box.children;
+        for (var i = 0; i < kids.length; i++) {
+          if (kids[i].dataset && kids[i].dataset.tid) ids.push(kids[i].dataset.tid);
+        }
+        // 数量对不上（拖拽途中有关闭竞态）就整体重渲染兜底，避免脏顺序写进 tabs
+        if (ids.length !== tabs.length) { refreshTabListIfOpen(); return; }
+        var seen = {}, ordered = [];
+        for (var j = 0; j < ids.length; j++) {
+          if (seen[ids[j]]) { refreshTabListIfOpen(); return; }
+          seen[ids[j]] = 1;
+          for (var k = 0; k < tabs.length; k++) {
+            if (tabs[k].id === ids[j]) { ordered.push(tabs[k]); break; }
+          }
+        }
+        if (ordered.length !== tabs.length) { refreshTabListIfOpen(); return; }
+        tabs = ordered;
+        // 顶部标签条同步到新顺序（appendChild 只移动已有节点，不重建、不动 iframe，
+        // 所以不会触发重载、不丢滚动位置）
+        for (var m = 0; m < tabs.length; m++) strip.appendChild(tabs[m].el);
+        saveSession();
+        updateNav();
+      } catch (e) {}
+    }
+
     // 标签没溢出时隐藏左右滚动按钮，溢出时才显示
     function updateNav() {
       try {
@@ -1676,9 +1718,8 @@
           (function (t) {
             var d = document.createElement("div");
             d.className = "li" + (t.id === activeId ? " active" : "");
-            d.title = t.name;
             var nm = document.createElement("span");
-            nm.className = "tl-nm"; nm.textContent = t.name;
+            nm.className = "tl-nm"; nm.textContent = t.name; nm.title = t.name;
             var x = document.createElement("span");
             x.className = "tl-x"; x.textContent = "×"; x.title = "关闭这个文件";
             d.appendChild(nm); d.appendChild(x);
@@ -1688,6 +1729,27 @@
             x.addEventListener("click", function (e) {
               e.stopPropagation();
               closeTab(t.id);
+            });
+            // 拖动排序：与顶部标签条共用同一套机制（tabDragId 共享），
+            // 落定后 syncTabOrderFromList 把列表顺序写回 tabs 数组，
+            // 并同步顶部标签条 DOM —— 两个入口看到的顺序永远一致
+            d.draggable = true;
+            d.dataset.tid = t.id;
+            d.title = t.name + "（点击切换，拖动可调整顺序）";
+            d.addEventListener("dragstart", function (e) {
+              tabDragId = t.id;
+              d.classList.add("dragging");
+              try {
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", t.id);
+              } catch (err) {}
+            });
+            d.addEventListener("dragend", function () {
+              tabDragId = null;
+              // 快速拖动可能残留多个 .dragging，统一清掉
+              var ds = box.querySelectorAll(".li.dragging");
+              for (var q = 0; q < ds.length; q++) ds[q].classList.remove("dragging");
+              syncTabOrderFromList();
             });
             box.appendChild(d);
           })(tabs[i]);
@@ -2990,6 +3052,29 @@
           e.preventDefault();
           syncTabOrderFromDom();
           updateNav();
+        });
+      }
+      // ☰ 列表同样支持拖动排序：实时把被拖的项插到指针处，落定后
+      // syncTabOrderFromList 会把列表顺序写回 tabs 数组并同步顶部标签条
+      var _tl = document.getElementById("tablist");
+      if (_tl) {
+        _tl.addEventListener("dragover", function (e) {
+          if (!tabDragId) return;
+          e.preventDefault();
+          try { e.dataTransfer.dropEffect = "move"; } catch (err) {}
+          var dragged = _tl.querySelector(".li.dragging");
+          if (!dragged) return;
+          var after = dragAfterElementY(_tl, e.clientY);
+          if (after) {
+            if (dragged.nextSibling !== after) _tl.insertBefore(dragged, after);
+          } else if (_tl.lastChild !== dragged) {
+            _tl.appendChild(dragged);
+          }
+        });
+        _tl.addEventListener("drop", function (e) {
+          if (!tabDragId) return;
+          e.preventDefault();
+          syncTabOrderFromList();
         });
       }
       // 点击空白处关闭列表面板 / 导出菜单 / 帮助菜单（点面板与对应按钮除外）
