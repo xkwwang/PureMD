@@ -11,7 +11,7 @@
 - 端口信息记录在 mdpreview/.hub.lock（格式：PID<换行>PORT），新实例据此找到在监听的端口。
 """
 import sys, os, base64, json, ctypes, socket, threading, time, atexit, subprocess, re, shutil
-import urllib.request
+import urllib.request, urllib.parse
 try:
     import winreg
 except Exception:      # 非 Windows 环境下不影响其余逻辑
@@ -146,6 +146,82 @@ def _backup_once(path):
     return target
 
 
+# 本地图片内联渲染：把 md 引用的本地图片读成 base64 data URI 随 payload 下发，
+# 前端渲染时把 <img src> 换成 data URI（原始路径保存到 data-pm-src，编辑模式
+# 保存回写时仍写原相对路径）——源 .md 全程只读、零改动。
+# 思路与 ErgeMD（Tauri + Rust read_image_as_data_url）一致：
+#   WebView2 里 iframe 是不透明来源，相对路径/file:// 都解析不到，base64 是正解。
+_IMAGE_MIME = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
+    ".bmp": "image/bmp", ".ico": "image/x-icon", ".avif": "image/avif",
+    ".tif": "image/tiff", ".tiff": "image/tiff",
+}
+MAX_IMAGE_BYTES = 10 * 1024 * 1024      # 单张超过 10MB 不内联（避免 payload 暴涨）
+MAX_INLINE_TOTAL = 48 * 1024 * 1024     # 全部内联图片的原始字节总和上限
+_MD_IMG_RE = re.compile(
+    r"!\[[^\]]*\]\(\s*(<[^>]*>|[^\s)]+)(?:\s+(?:\"[^\"]*\"|'[^']*'|\([^)]*\)))?\s*\)")
+_HTML_IMG_RE = re.compile(
+    r"<img\b[^>]*?\bsrc\s*=\s*(?:\"([^\"]*)\"|'([^']*)'|([^\s>]+))", re.I)
+_URL_SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+
+
+def _resolve_local_image(md_path, src):
+    """把 md 里的图片 src 解析成本地文件路径；远程/内嵌/不存在返回 ""。"""
+    s = (src or "").strip()
+    if not s or s.startswith("#") or s.startswith("//"):
+        return ""
+    # http/data/blob/mailto 等带协议的一律不碰（Windows 盘符 C:/ 例外）
+    if _URL_SCHEME_RE.match(s) and not re.match(r"^[A-Za-z]:[\\/]", s):
+        return ""
+    variants = []
+    for base in (s, urllib.parse.unquote(s)):
+        base = base.replace("\\", "/")
+        if base not in variants:
+            variants.append(base)
+    md_dir = os.path.dirname(os.path.abspath(md_path))
+    for v in variants:
+        p = v if re.match(r"^[A-Za-z]:/", v) else os.path.join(md_dir, v)
+        p = os.path.normpath(p)
+        if os.path.isfile(p):
+            return p
+    return ""
+
+
+def _inline_local_images(text, md_path):
+    """收集 md 引用的本地图片 → {原始src: dataURI}。只读，绝不写任何文件。"""
+    mapping = {}
+    srcs = []
+    for m in _MD_IMG_RE.finditer(text):
+        u = m.group(1)
+        if u.startswith("<") and u.endswith(">"):
+            u = u[1:-1]
+        srcs.append(u)
+    for m in _HTML_IMG_RE.finditer(text):
+        srcs.append(m.group(1) or m.group(2) or m.group(3) or "")
+    total = 0
+    for src in srcs:
+        if not src or src in mapping:
+            continue
+        p = _resolve_local_image(md_path, src)
+        if not p:
+            continue
+        mime = _IMAGE_MIME.get(os.path.splitext(p)[1].lower())
+        if not mime:
+            continue
+        try:
+            size = os.path.getsize(p)
+            if size > MAX_IMAGE_BYTES or total + size > MAX_INLINE_TOTAL:
+                continue
+            with open(p, "rb") as f:
+                data = f.read()
+        except OSError:
+            continue
+        mapping[src] = "data:%s;base64,%s" % (mime, base64.b64encode(data).decode("ascii"))
+        total += size
+    return mapping
+
+
 def render_to_html(md_path):
     tpl_path = os.path.join(script_dir(), TEMPLATE_REL)
     if not os.path.isfile(tpl_path):
@@ -153,6 +229,9 @@ def render_to_html(md_path):
     text = _read_text(md_path)  # 只读，不写回
     name = os.path.basename(md_path)
     obj = {"name": name, "text": text}
+    images = _inline_local_images(text, md_path)
+    if images:
+        obj["images"] = images
     b64 = base64.b64encode(json.dumps(obj, ensure_ascii=False).encode("utf-8")).decode("ascii")
     tpl = open(tpl_path, encoding="utf-8").read()
     if PLACEHOLDER not in tpl:
@@ -548,7 +627,7 @@ def save_config(obj):
 
 
 APP_NAME = "PureMD"
-APP_VERSION = "1.5.6"
+APP_VERSION = "1.5.7"
 # 发布到 GitHub 后，把这里填成你的 Releases API 地址（留空则不做更新检查），例如：
 #   https://api.github.com/repos/<你的用户名>/<仓库名>/releases/latest
 UPDATE_CHECK_URL = "https://api.github.com/repos/xkwwang/PureMD/releases/latest"

@@ -2452,6 +2452,10 @@
     var fileInput = document.getElementById('fileInput');
     var current = null;     // { name, file, handle, dirHandle, lastModified, text }
     var watchTimer = null;
+    // 本地图片内联映射 { 原始src: dataURI }，由 Python 端只读收集后随 payload 下发。
+    // 渲染时把 <img src> 换成 data URI，原始路径存到 data-pm-src；
+    // 编辑模式保存回写时用 data-pm-src 还原，保证源文件里还是原相对路径。
+    var IMG_MAP = {};
 
     function setStatus(m){ statusEl.textContent = m; }
 
@@ -2589,7 +2593,9 @@
           continue;
         }
         if (tag === 'img') {
-          out += '![' + (n.getAttribute('alt') || '') + '](' + (n.getAttribute('src') || '') + ')';
+          // 本地图片显示时已被换成 data URI；保存回写必须还原成原始相对路径
+          var isrc = n.getAttribute('data-pm-src') || n.getAttribute('src') || '';
+          out += '![' + (n.getAttribute('alt') || '') + '](' + isrc + ')';
           continue;
         }
         if (tag === 'sub' || tag === 'sup' || tag === 'kbd' || tag === 'input') {
@@ -2714,6 +2720,13 @@
         return t;
       }
       if (tag === 'br') return '';
+      if (tag === 'img') {
+        // 本地图片显示时已被换成 data URI；保存回写必须还原成原始路径，
+        // 且绝不把内部的 data-pm-src 标记写进用户文件
+        var s = el.getAttribute('data-pm-src') || el.getAttribute('src') || '';
+        return '<img src="' + s + '"' +
+               (el.getAttribute('alt') ? ' alt="' + el.getAttribute('alt') + '"' : '') + '>';
+      }
       // 其余（含用户粘进来的裸 HTML）：原样保留标签
       return el.outerHTML;
     }
@@ -2730,6 +2743,8 @@
       for (var i = 0; i < content.children.length; i++) {
         var el = content.children[i];
         if (el.getAttribute && el.getAttribute('data-l')) withL.push(el);
+        // 源码里就有的裸 HTML 块：原文已由间隙补写逐字保留，跳过避免重复输出
+        else if (el.getAttribute && el.getAttribute('data-src-html')) continue;
         else extras.push(el);
       }
       // 新块归到它后面那个有行号的块前面（没有就放末尾）
@@ -2789,8 +2804,44 @@
     function render(text){
       hint.style.display = 'none';
       content.innerHTML = md.render(text);
+      markSourceHtmlBlocks(text);   // 必须先于 applyImageMap：比对的是未被替换的原始 DOM
+      applyImageMap();
       syncModel(text);
       if (current && current.dirHandle) resolveImages();
+    }
+
+    // 源码里原本就有的裸 HTML 块（html_block 不带 data-l）：其原文已由 buildText 的
+    // 间隙补写逐字保留，不能再当"用户新块"重复写出去（否则每次保存都多出一份）。
+    // 逐行比对原文，命中就打 data-src-html 标记，buildText 收集 extras 时跳过。
+    function markSourceHtmlBlocks(text){
+      var lines = (typeof text === 'string') ? text.split(/\r?\n/) : [];
+      if (!lines.length) return;
+      var kids = content.children;
+      for (var i = 0; i < kids.length; i++){
+        var el = kids[i];
+        if (!el.getAttribute || el.getAttribute('data-l') || el.getAttribute('data-src-html')) continue;
+        var oh = el.outerHTML.trim();
+        if (!oh) continue;
+        for (var j = 0; j < lines.length; j++){
+          if (lines[j].trim() === oh) { el.setAttribute('data-src-html', '1'); break; }
+        }
+      }
+    }
+
+    // 把本地相对路径图片换成 Python 端收集好的 data URI（远程/data:/blob: 不动）
+    function applyImageMap(){
+      if (!IMG_MAP) return;
+      var imgs = content.querySelectorAll('img');
+      for (var i = 0; i < imgs.length; i++){
+        var img = imgs[i];
+        if (img.getAttribute('data-pm-src')) continue;      // 已处理过
+        var src = img.getAttribute('src') || '';
+        if (!src || /^(https?:|data:|blob:)/i.test(src)) continue;
+        var data = IMG_MAP[src];
+        if (!data) continue;                                 // 找不到/超大被跳过：维持原样
+        img.setAttribute('data-pm-src', src);                // 留给保存回写还原
+        img.setAttribute('src', data);
+      }
     }
 
     async function resolveImages(){
@@ -2901,6 +2952,7 @@
         for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
         var obj = JSON.parse(new TextDecoder("utf-8").decode(bytes));
         document.title = "预览: " + (obj.name || "document");
+        if (obj.images && typeof obj.images === 'object') IMG_MAP = obj.images;
         render(obj.text || "");
         setStatus("已渲染内嵌内容 " + (obj.name || ""));
       } catch (e) { console.error(e); }
