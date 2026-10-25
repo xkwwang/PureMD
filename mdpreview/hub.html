@@ -334,6 +334,7 @@
   .winbtn:active { box-shadow: inset 0 0 0 1px rgba(31,35,40,0.14); }
   .winbtn.close:hover { background: #e5534b; color: #fff; border-color: #e5534b; box-shadow: 0 2px 8px rgba(229,83,75,0.4); }
   .winbtn:disabled { opacity: .4; cursor: default; }
+  .winbtn svg { display: block; pointer-events: none; }
   body.dark .winbtn { color: #8b949e; }
   body.dark .winbtn:hover { background: #21262d; border-color: #30363d; box-shadow: 0 2px 6px rgba(0,0,0,0.35); }
   body.dark .winbtn:active { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14); }
@@ -636,6 +637,10 @@
   body.dark #sidebar .sb-btn:hover { background: #30363d; }
   body.beige #sidebar .sb-btn { background: #e6dcc3; color: #4a3b28; border-color: #d8cba8; }
   body.beige #sidebar .sb-btn:hover { background: #ded2b3; }
+  #sidebar .sb-btn:disabled { opacity: .45; cursor: default; }
+  #sidebar .sb-btn:disabled:hover { background: #fff; }
+  body.dark #sidebar .sb-btn:disabled:hover { background: #21262d; }
+  body.beige #sidebar .sb-btn:disabled:hover { background: #e6dcc3; }
   #sidebar .sb-path {
     font-size: 11px; color: #6e7781; padding: 4px 8px 2px; flex: 0 0 auto;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -891,7 +896,7 @@
       <span id="status"></span>
       <div class="winctrls">
         <button class="winbtn" id="minBtn" title="最小化">&#8211;</button>
-        <button class="winbtn" id="maxBtn" title="最大化">&#9633;</button>
+        <button class="winbtn" id="maxBtn" title="最大化" aria-label="最大化"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><rect x="1.5" y="1.5" width="9" height="9"/></svg></button>
         <button class="winbtn close" id="closeBtn" title="关闭">&#10005;</button>
       </div>
     </div>
@@ -964,6 +969,7 @@
     <div id="sidebar">
       <div class="sb-head" id="sbHead">
         <span class="sb-btns">
+          <button class="sb-btn" id="sbUp" title="返回上一级文件夹">&#8593;</button>
           <button class="sb-btn" id="sbOpen">打开文件夹</button>
           <button class="sb-btn" id="sbClose" title="收起侧栏">×</button>
         </span>
@@ -1010,14 +1016,23 @@
     }
     if (maxB) {
       maxB.dataset.wired = "1";
+      // 最大化 / 还原图标（模仿 Windows 习惯：单方框=放大，双方框=还原），
+      // 细描边风格与标题栏其他按钮一致；stroke 用 currentColor 跟随主题。
+      var ICO_MAX = '<svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><rect x="1.5" y="1.5" width="9" height="9"/></svg>';
+      var ICO_RESTORE = '<svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M5.5 5.5 L5.5 1.5 L10.5 1.5 L10.5 6.5 L6.5 6.5"/><path d="M1.5 10.5 L1.5 5.5 L5.5 5.5 M6.5 6.5 L6.5 10.5 L1.5 10.5"/></svg>';
+      function setMaxUI(maxed) {
+        maxB.setAttribute("data-max", maxed ? "1" : "0");
+        maxB.innerHTML = maxed ? ICO_RESTORE : ICO_MAX;
+        maxB.title = maxed ? "还原" : "最大化";
+        maxB.setAttribute("aria-label", maxed ? "还原" : "最大化");
+      }
+      // Python 侧推送：拖标题栏 / 拖边缘还原窗口时，图标要跟着翻回「最大化」，
+      // 否则按钮停留在还原态，与窗口实际状态相反（再点一次行为也会不对）。
+      window.__pmMaxState = function (maxed) { setMaxUI(!!maxed); };
       maxB.addEventListener("click", function () {
         var maxed = maxB.getAttribute("data-max") === "1";
         var p = callApi(maxed ? "window_restore" : "window_maximize");
-        var done = function () {
-          maxB.setAttribute("data-max", maxed ? "0" : "1");
-          maxB.innerHTML = maxed ? "&#9633;" : "&#9634;";
-          maxB.title = maxed ? "最大化" : "还原";
-        };
+        var done = function () { setMaxUI(!maxed); };
         if (p && p.then) { p.then(done); } else { done(); }
       });
     }
@@ -1043,7 +1058,7 @@
       if (!ready()) return;
       dragging = true;
       sx = ev.screenX; sy = ev.screenY;
-      try { window.pywebview.api.window_drag_start(); } catch (e) {}
+      try { window.pywebview.api.window_drag_start(ev.screenX, ev.screenY); } catch (e) {}
       ev.preventDefault();
     });
     window.addEventListener("mousemove", function (ev) {
@@ -1274,6 +1289,7 @@
     var expanded = {};         // 已展开的文件夹路径 -> true
     var treeRoot = null;       // 当前树实际渲染的根（用于判断是否需要重绘）
     var locatePath = null;     // 需要定位/高亮的文件（跟随当前标签）
+    var cfgPending = false;    // 配置恢复中：此期间文件树同步先 stash，等配置落地再跑
     var activeId = null;
     var counter = 0;
     var theme = "light";       // "light" | "dark" | "beige"
@@ -2113,7 +2129,9 @@
       // 尝试从本地配置恢复用户上次的主题 / 自动刷新偏好
       whenApiReady(function () {
         if (!hasApi() || !window.pywebview.api.get_config) return;
+        cfgPending = true;
         window.pywebview.api.get_config().then(function (cfg) {
+          cfgPending = false;
           if (cfg && cfg.theme && (cfg.theme === "dark" || cfg.theme === "beige" || cfg.theme === "light")) {
             theme = cfg.theme; userToggled = true; applyAll();
           }
@@ -2157,7 +2175,11 @@
           }
           if (typeof cfg.auto_update_check === "boolean") cfgAutoChk = cfg.auto_update_check;
           setAutoChkLabel();
-        }).catch(function () {});
+          // 配置落地后按当前标签重新对齐一次文件树：无论标签是抢在配置前到达
+          // （启动竞态）还是正常到达，都保证"自动定位"最终生效
+          var at0 = activeTab();
+          if (at0 && at0.path) scheduleTreeSync(at0);
+        }).catch(function () { cfgPending = false; });
         // 启动 2.5s 后自动检查新版本（异步不阻塞首屏；失败静默；可在帮助菜单关掉）
         setTimeout(function () { checkUpdateFlow(false); }, 2500);
       });
@@ -2436,6 +2458,8 @@
       try {
         var el = document.getElementById("sbPath");
         if (el) { el.textContent = curFolder || ""; el.title = curFolder || ""; }
+        var up = document.getElementById("sbUp");
+        if (up) up.disabled = atRootFolder();
       } catch (e) {}
     }
 
@@ -2460,6 +2484,40 @@
       var f = expKey(file), r = expKey(root);
       if (!f || !r) return false;
       return f === r || f.indexOf(r + "\\") === 0;
+    }
+    // 是否已经在磁盘顶层（"C:\" 之上没有目录了）
+    function atRootFolder() {
+      if (!curFolder) return true;
+      var up = pathDir(curFolder);
+      return !up || expKey(up) === expKey(curFolder);
+    }
+    // 把某文件到当前根之间的各级目录标记为展开；返回是否有新展开的目录
+    function expandAncestorsOf(path) {
+      var changed = false, cur = pathDir(path), guard = 0;
+      while (cur && curFolder && guard++ < 40) {
+        if (expKey(cur) === expKey(curFolder) || !isUnder(cur, curFolder)) break;
+        if (!expanded[expKey(cur)]) { expanded[expKey(cur)] = true; changed = true; }
+        var up = pathDir(cur);
+        if (!up || up === cur) break;
+        cur = up;
+      }
+      return changed;
+    }
+    // 返回上一级文件夹：根变成当前根的父目录。之后 ensureTree 会把当前文件的
+    // 各级祖先重新展开并高亮，所以「往上翻看兄弟目录」与「自动定位」可以反复
+    // 交替进行，不会一换根就找不到当前文件。
+    function goUpFolder() {
+      if (!curFolder) return;
+      var up = pathDir(curFolder);
+      if (!up || expKey(up) === expKey(curFolder)) { setStatus("已经在磁盘顶层了"); return; }
+      curFolder = up;
+      expanded = {};
+      saveCfg({ folder: curFolder });   // 记住这次切换，下次启动直接还原
+      var sb = document.getElementById("sidebar");
+      if (sb) { sb.classList.add("show"); sidebarOpen = true; }
+      setSbPath();
+      treeRoot = null;
+      ensureTree();
     }
 
     function listDir(path) {
@@ -2547,6 +2605,8 @@
     //       文件不在当前根目录下 → 把根切到它所在的文件夹（即"所属文件夹"）。
     function markTreeFile(path, scope) {
       try {
+        // 陈旧定位请求（已被更新的目标取代）一律忽略，避免高亮被旧文件抢走
+        if (path && typeof locatePath !== "undefined" && locatePath && path !== locatePath) return;
         var box = scope || document.getElementById("tree");
         if (!box) return;
         var want = expKey(path);
@@ -2580,9 +2640,15 @@
         }
       } catch (e) {}
     }
-    // 树是逐层异步渲染的，目标行可能稍后才出现，所以重试几次
-    function locateInTree(path, tries) {
+    // 树是逐层异步渲染的，目标行可能稍后才出现，所以重试几次。
+    // 关键：新的定位请求必须作废旧请求的重试——否则"上一次"（如切换标签前的
+    // 那个文件）的重试循环稍后才等到自己的行出现，会把高亮覆盖回旧文件，
+    // 表现为"树展开了、但高亮停在别的文件上"（真机实测 v1.5.8）。
+    var locateGen = 0;
+    function locateInTree(path, tries, gen) {
       tries = tries || 0;
+      if (gen === undefined) gen = ++locateGen;
+      else if (gen !== locateGen) return;      // 已有更新的定位请求 → 放弃陈旧重试
       var tree = document.getElementById("tree");
       if (!tree || !path) return;
       var want = expKey(path);
@@ -2593,7 +2659,7 @@
           return;
         }
       }
-      if (tries < 30) setTimeout(function () { locateInTree(path, tries + 1); }, 80);
+      if (tries < 30) setTimeout(function () { locateInTree(path, tries + 1, gen); }, 80);
     }
     function syncTreeToFile(t) {
       // 标签可能在防抖窗口内被关掉/切走，此时不该再去定位它
@@ -2601,6 +2667,11 @@
         if (!tabs.length) { locatePath = null; markTreeFile(""); }
         return;
       }
+      // 配置恢复未完成：curFolder 还是 null，此时抢跑会把根切到文件所在文件夹，
+      // 等 get_config 落地后再把根设回保存值——expanded 被清空，文件文件夹
+      // 折叠、高亮丢失（观感就是"自动定位突然不灵了"）。交给配置恢复流程
+      // 统一触发，这里只记下目标。
+      if (cfgPending) { treeSyncTarget = t; return; }
       var dir = pathDir(t.path);
       if (!dir) return;
       locatePath = t.path;
@@ -2613,15 +2684,12 @@
           setSbPath();
         }
       }
-      // 从根到文件所在目录逐级展开
-      var cur = dir, guard = 0;
-      while (cur && curFolder && guard++ < 40) {
-        if (expKey(cur) === expKey(curFolder) || !isUnder(cur, curFolder)) break;
-        expanded[expKey(cur)] = true;
-        var up = pathDir(cur);
-        if (!up || up === cur) break;
-        cur = up;
-      }
+      // 从根到文件所在目录逐级展开。
+      // 关键：必须传【文件路径】而不是目录！expandAncestorsOf 内部第一步就是
+      // pathDir(path)，若这里传 dir（已取过一次 pathDir），等于少展开一级——
+      // 文件所在的那一层文件夹不会被标记展开，.md 行渲染不出来、也无从高亮。
+      // 症状正是"启动后文件树全折叠、当前文档不高亮"（真机实测 v1.5.8）。
+      expandAncestorsOf(t.path);
       var sb = document.getElementById("sidebar");
       var showing = !!(sb && sb.classList.contains("show"));
       if (showing && sbMode === "files") {
@@ -2637,6 +2705,18 @@
     var treeSyncTimer = null, treeSyncTarget = null;
     function scheduleTreeSync(t) {
       if (!t || !t.path) return;
+      // 配置恢复中：先 stash，等 get_config 落地后由它接着触发（见 syncTreeToFile 注释）
+      if (cfgPending) {
+        treeSyncTarget = t;
+        if (!treeSyncTimer) {
+          treeSyncTimer = setTimeout(function () {
+            treeSyncTimer = null;
+            var x = treeSyncTarget; treeSyncTarget = null;
+            if (x) syncTreeToFile(x);
+          }, 2000);   // 兜底：配置接口异常也不至于永远不定位
+        }
+        return;
+      }
       treeSyncTarget = t;
       if (treeSyncTimer) clearTimeout(treeSyncTimer);
       treeSyncTimer = setTimeout(function () {
@@ -2649,7 +2729,11 @@
     function ensureTree() {
       var tree = document.getElementById("tree");
       if (!tree || !curFolder) return;
-      if (treeRoot !== curFolder) {
+      // 自愈：根目录可能是配置恢复 / 手动选文件夹 / 返回上一级后来才设定的，
+      // 此时 expanded 是空的——把当前文件的各级祖先补上。否则文件文件夹折叠、
+      // 高亮丢失（手动选完文件夹后"自动定位失效"就是这个原因）。
+      var grew = locatePath ? expandAncestorsOf(locatePath) : false;
+      if (treeRoot !== curFolder || grew) {
         renderTree(curFolder, tree, 0);
         treeRoot = curFolder;
       }
@@ -2706,6 +2790,8 @@
     }
     function wireSidebar() {
       try {
+        var su = document.getElementById("sbUp");
+        if (su) su.addEventListener("click", function (e) { e.stopPropagation(); goUpFolder(); });
         var so = document.getElementById("sbOpen");
         if (so) so.addEventListener("click", function (e) { e.stopPropagation(); pickFolder(); });
         var sc = document.getElementById("sbClose");

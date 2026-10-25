@@ -627,7 +627,7 @@ def save_config(obj):
 
 
 APP_NAME = "PureMD"
-APP_VERSION = "1.5.7"
+APP_VERSION = "1.5.8"
 # 发布到 GitHub 后，把这里填成你的 Releases API 地址（留空则不做更新检查），例如：
 #   https://api.github.com/repos/<你的用户名>/<仓库名>/releases/latest
 UPDATE_CHECK_URL = "https://api.github.com/repos/xkwwang/PureMD/releases/latest"
@@ -652,6 +652,42 @@ def _ver_gt(a, b):
         return _ver_key(a) > _ver_key(b)
     except Exception:
         return False
+
+
+class _RECT(ctypes.Structure):
+    _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
+                ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+
+
+class _MONITORINFO(ctypes.Structure):
+    _fields_ = [("cbSize", ctypes.c_ulong), ("rcMonitor", _RECT),
+                ("rcWork", _RECT), ("dwFlags", ctypes.c_ulong)]
+
+
+def _work_area(hwnd):
+    """窗口所在显示器的工作区矩形（不含任务栏 / 自动隐藏的任务栏保留其占位）。
+
+    无边框窗口若走系统 maximize()，会盖到整块屏幕（含任务栏）——WinForms 对
+    FormBorderStyle=None 的窗口就是这么处理的。所以最大化改为手动把窗口铺到
+    工作区，任务栏始终露在外面。多显示器环境下取窗口当前所在显示器。
+    """
+    user32 = ctypes.windll.user32
+    try:
+        hmon = user32.MonitorFromWindow(hwnd, 2)      # MONITOR_DEFAULTTONEAREST
+        if hmon:
+            mi = _MONITORINFO()
+            mi.cbSize = ctypes.sizeof(_MONITORINFO)
+            if user32.GetMonitorInfoW(hmon, ctypes.byref(mi)):
+                return (mi.rcWork.left, mi.rcWork.top, mi.rcWork.right, mi.rcWork.bottom)
+    except Exception:
+        pass
+    try:                                              # 兜底：主显示器工作区
+        rc = _RECT()
+        if user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(rc), 0):   # SPI_GETWORKAREA
+            return (rc.left, rc.top, rc.right, rc.bottom)
+    except Exception:
+        pass
+    return None
 
 
 class Api:
@@ -883,6 +919,12 @@ class Api:
     # ---- 窗口控制：优先 pywebview，失败则回退 Windows 原生消息 ----
     # 回退很关键：一旦 pywebview 侧调用失效，窗口会「关不掉 / 最小不了」。
     _drag_origin = None
+    _drag_start_xy = (None, None)   # 最近一次 drag_start 的鼠标坐标（window_move 兜底复用）
+    # 手动最大化状态（见 window_maximize）：无边框窗口走系统 maximize() 会连
+    # 任务栏一起盖住，所以改为 SetWindowPos 铺满「工作区」，状态在此自管。
+    _maximized = False
+    _max_rect = None        # 最大化前的窗口矩形 (L, T, R, B)，还原用
+    _max_wa = None          # 最大化时铺的工作区矩形 (L, T, R, B)，拖动摆位按它做比例映射
 
     def _hwnd(self):
         """取主窗口句柄（选择规则见 _own_main_hwnd 的注释）。"""
@@ -938,28 +980,59 @@ class Api:
         return False
 
     def window_maximize(self):
+        """最大化到「工作区」：桌面任务栏始终露在外面（无边框窗口的系统
+        maximize() 会连任务栏一起盖住，故手动 SetWindowPos 到工作区矩形）。
+        幂等：已最大化时直接返回。"""
+        h = self._hwnd()
+        if not h:
+            return False
+        if Api._maximized:
+            return True
         try:
-            webview.windows[0].maximize()
+            rect = _RECT()
+            ctypes.windll.user32.GetWindowRect(h, ctypes.byref(rect))
+            Api._max_rect = (int(rect.left), int(rect.top), int(rect.right), int(rect.bottom))
+            wa = _work_area(h)
+            if not wa:
+                return False
+            # 先 SW_RESTORE：清掉可能存在的系统最大化/最小化状态，再铺到工作区
+            ctypes.windll.user32.ShowWindow(h, 9)   # SW_RESTORE
+            ctypes.windll.user32.SetWindowPos(
+                h, None, int(wa[0]), int(wa[1]),
+                int(wa[2] - wa[0]), int(wa[3] - wa[1]),
+                0x0004)                               # SWP_NOZORDER
+            Api._maximized = True
+            Api._max_wa = (int(wa[0]), int(wa[1]), int(wa[2]), int(wa[3]))
+            _push_max_state(True)
             return True
         except Exception:
-            pass
-        try:                                    # WM_SYSCOMMAND / SC_MAXIMIZE
-            h = self._hwnd()
-            if h:
-                ctypes.windll.user32.PostMessageW(h, 0x0112, 0xF030, 0)
+            Api._maximized = False
+            Api._max_rect = None
+            return False
+
+    def window_restore(self):
+        """从最大化还原成原来的窗口矩形；未最大化时兜底走系统还原。"""
+        h = self._hwnd()
+        if not h:
+            return False
+        try:
+            if Api._maximized and Api._max_rect:
+                L, T, R, B = Api._max_rect
+                ctypes.windll.user32.SetWindowPos(
+                    h, None, int(L), int(T), int(R - L), int(B - T), 0x0004)
+                Api._maximized = False
+                Api._max_rect = None
+                Api._max_wa = None
+                _push_max_state(False)
                 return True
         except Exception:
             pass
-        return False
-
-    def window_restore(self):
         try:
             webview.windows[0].restore()
             return True
         except Exception:
             pass
         try:                                    # WM_SYSCOMMAND / SC_RESTORE
-            h = self._hwnd()
             if h:
                 ctypes.windll.user32.PostMessageW(h, 0x0112, 0xF120, 0)
                 return True
@@ -984,18 +1057,59 @@ class Api:
 
     # ---- 自绘标题栏拖动：绕开 pywebview 内置 easy_drag（实测在 Edge 内核不可靠） ----
     # JS 侧累计相对位移，Python 侧叠加到拖动开始时的窗口原点上。
-    def window_drag_start(self):
+    def window_drag_start(self, mx=None, my=None):
+        """开始拖动标题栏。mx/my 为 mousedown 时的屏幕坐标（最大化还原要用）。
+        最大化状态下：先还原成原尺寸，再把窗口摆到鼠标下方（抓取点按比例
+        映射到还原后的标题栏），随后 window_move 即可无缝跟随——与原生
+        Windows「拖最大化窗口先还原再跟手」一致。"""
         try:
             h = self._hwnd()
             if not h:
                 Api._drag_origin = None
                 return False
-            # 最大化状态下不让 JS 拖动：先还原再拖更自然，避免窗口跳变
-            if ctypes.windll.user32.IsZoomed(h):
+            user32 = ctypes.windll.user32
+            Api._drag_start_xy = (mx, my)
+            if Api._maximized and mx is not None and my is not None and Api._max_rect:
+                # 1) 先把要用的数据取出来——window_restore() 会把 _max_rect /
+                #    _maximized / _max_wa 全部清掉，之后再解包就是 None（曾经
+                #    正是如此：TypeError 被外层 except 吞掉，摆位整段成了死代码，
+                #    窗口只是原地还原、光标不在标题栏上，大幅拖动时观感很差）。
+                L0, T0, R0, B0 = Api._max_rect
+                wa_max = Api._max_wa or _work_area(h) or (L0, T0, R0, B0)
+                # 2) 还原到原尺寸（同时清掉 _maximized 标志）
+                if not self.window_restore():
+                    return False
+                # 3) 把窗口摆到鼠标下方：抓取点在最大化窗口里的相对位置，按
+                #    宽/高比例映射到还原后的窗口；y 钳在标题栏高度内，保证
+                #    光标始终落在标题栏上（原生 Windows 也是这个手感）。
+                mrect = _RECT()
+                user32.GetWindowRect(h, ctypes.byref(mrect))
+                rw = max(1, mrect.right - mrect.left)
+                rh = max(1, mrect.bottom - mrect.top)
+                mw = max(1, int(wa_max[2]) - int(wa_max[0]))
+                mh = max(1, int(wa_max[3]) - int(wa_max[1]))
+                fx = (float(mx) - float(wa_max[0])) / mw
+                fy = (float(my) - float(wa_max[1])) / mh
+                fx = min(max(fx, 0.0), 1.0)
+                offx = int(round(fx * rw))
+                offy = int(round(fy * rh))
+                offy = max(0, min(offy, 40))          # 钳在标题栏高度内，防止乱跳
+                newL = int(mx) - offx
+                newT = int(my) - offy
+                # 别把窗口拖出工作区（顶部至少露出来，左右留 80px 可抓）
+                wa = _work_area(h) or wa_max
+                newT = max(int(wa[1]), min(newT, int(wa[3]) - 40))
+                newL = max(int(wa[0]) - rw + 80,
+                           min(newL, int(wa[2]) - 80))
+                user32.SetWindowPos(h, None, newL, newT, 0, 0, 0x0001 | 0x0004)
+                Api._drag_origin = (newL, newT)
+                return True
+            # 系统最大化（Win+方向键等路径）时同样不允许直接拖：先还原再拖更自然
+            if user32.IsZoomed(h):
                 Api._drag_origin = None
                 return False
             rect = (ctypes.c_long * 4)()        # 等价于 RECT：left, top, right, bottom
-            ctypes.windll.user32.GetWindowRect(h, ctypes.byref(rect))
+            user32.GetWindowRect(h, ctypes.byref(rect))
             Api._drag_origin = (rect[0], rect[1])
             return True
         except Exception:
@@ -1005,7 +1119,7 @@ class Api:
     def window_move(self, dx, dy):
         try:
             org = Api._drag_origin
-            if not org and not self.window_drag_start():
+            if not org and not self.window_drag_start(*(Api._drag_start_xy or (None, None))):
                 return False
             org = Api._drag_origin
             h = self._hwnd()
@@ -1051,10 +1165,16 @@ class Api:
                 gid = int(gid)
             except Exception:
                 gid = Api._resize_gid
-            if ctypes.windll.user32.IsZoomed(h):
-                # 最大化：先还原（还原后的矩形才是可自由缩放的状态）
+            if Api._maximized or ctypes.windll.user32.IsZoomed(h):
+                # 最大化：先还原（还原后的矩形才是可自由缩放的状态）。
+                # _maximized 是手动工作区最大化，走 window_restore 回到原矩形；
+                # IsZoomed 是系统路径（Win+↑ 等），用 SW_RESTORE。
                 try:
-                    ctypes.windll.user32.ShowWindow(h, 9)   # SW_RESTORE
+                    if Api._maximized:
+                        self.window_restore()          # 内部已推送 False
+                    else:
+                        ctypes.windll.user32.ShowWindow(h, 9)   # SW_RESTORE
+                        _push_max_state(False)         # 系统最大化路径，图标也要翻回去
                 except Exception:
                     return False
                 rect = (ctypes.c_long * 4)()
@@ -1363,6 +1483,24 @@ def js_inject(payload):
               ":function(p){(window.__pending=window.__pending||[]).push(p)})(%s)") % json.dumps(payload)
         webview.windows[0].evaluate_js(js)
         raise_window()   # 新增标签页后，把窗口从后台/最小化状态提到最前
+        return True
+    except Exception:
+        return False
+
+
+def _push_max_state(maxed):
+    """把窗口最大化状态推给前端，同步 maxBtn 图标（□ ⇄ ⧉）。
+
+    除按钮点击外，「拖标题栏还原」「拖边缘还原」这两条路径也会改变最大化
+    状态，若不通告前端，按钮会停留在「还原」图标上，与窗口实际状态相反。
+    """
+    try:
+        import webview
+        if not webview.windows:
+            return False
+        js = ("if(window.__pmMaxState)window.__pmMaxState(%s)"
+              % ("true" if maxed else "false"))
+        webview.windows[0].evaluate_js(js)
         return True
     except Exception:
         return False
