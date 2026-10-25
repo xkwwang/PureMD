@@ -622,12 +622,11 @@
   body.dark #sidebar { background: #161b22; border-right-color: #30363d; }
   body.beige #sidebar { background: #ede3cc; border-right-color: #d8cba8; }
   #sidebar .sb-head {
-    display: flex; align-items: center; gap: 6px; padding: 6px 8px; flex: 0 0 auto;
+    display: flex; align-items: center; gap: 4px; padding: 5px 8px; flex: 0 0 auto;
     border-bottom: 1px solid #d0d7de;
   }
   body.dark #sidebar .sb-head { border-bottom-color: #30363d; }
   body.beige #sidebar .sb-head { border-bottom-color: #d8cba8; }
-  #sidebar .sb-btns { display: flex; gap: 4px; margin-left: auto; }
   #sidebar .sb-btn {
     border: 1px solid #d0d7de; background: #fff; color: #24292f; border-radius: 6px;
     font-size: 11px; padding: 3px 7px; cursor: pointer; white-space: nowrap;
@@ -642,7 +641,7 @@
   body.dark #sidebar .sb-btn:disabled:hover { background: #21262d; }
   body.beige #sidebar .sb-btn:disabled:hover { background: #e6dcc3; }
   #sidebar .sb-path {
-    font-size: 11px; color: #6e7781; padding: 4px 8px 2px; flex: 0 0 auto;
+    font-size: 11px; color: #6e7781; flex: 1 1 auto; min-width: 0; margin-left: 2px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   body.dark #sidebar .sb-path { color: #8b949e; }
@@ -968,13 +967,10 @@
   <div id="main">
     <div id="sidebar">
       <div class="sb-head" id="sbHead">
-        <span class="sb-btns">
-          <button class="sb-btn" id="sbUp" title="返回上一级文件夹">&#8593;</button>
-          <button class="sb-btn" id="sbOpen">打开文件夹</button>
-          <button class="sb-btn" id="sbClose" title="收起侧栏">×</button>
-        </span>
+        <button class="sb-btn" id="sbUp" title="返回上一级文件夹">&#8593;</button>
+        <button class="sb-btn" id="sbOpen">打开文件夹</button>
+        <span class="sb-path" id="sbPath"></span>
       </div>
-      <div class="sb-path" id="sbPath"></div>
       <div class="sb-tree" id="tree"></div>
       <div class="sb-toc" id="toc" style="display:none"></div>
       <div class="sb-hl" id="hlList" style="display:none"></div>
@@ -2794,8 +2790,6 @@
         if (su) su.addEventListener("click", function (e) { e.stopPropagation(); goUpFolder(); });
         var so = document.getElementById("sbOpen");
         if (so) so.addEventListener("click", function (e) { e.stopPropagation(); pickFolder(); });
-        var sc = document.getElementById("sbClose");
-        if (sc) sc.addEventListener("click", function (e) { e.stopPropagation(); toggleSidebar(); });
       } catch (e) {}
     }
     // 动作条最左边那个图标：只负责「开 / 关」侧栏，不主动弹选文件夹对话框
