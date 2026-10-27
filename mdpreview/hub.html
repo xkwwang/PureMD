@@ -959,6 +959,7 @@
     </div>
   </div>
   <div id="helpMenu" class="popmenu">
+    <div class="hli" id="helpNewWin" title="再开一个独立的 PureMD 窗口（可拖标签在窗口间移动）">新窗口</div>
     <div class="hli" id="helpUpdate" title="查询 GitHub Releases 是否有新版本">检查更新</div>
     <div class="hli" id="helpAutoChk" title="启动时自动检查新版本（需能访问 api.github.com）">自动检查更新：开</div>
     <div class="hli" id="helpFeedback">反馈</div>
@@ -1294,6 +1295,7 @@
     var cfgTheme = "light";     // 用户上次保存的主题（来自本地配置）
     var FEEDBACK_EMAIL = "xkwwang@126.com";  // 反馈邮箱
     var APP_VERSION = "dev";   // 版本号（Python 侧启动时注入真实值，关于弹窗显示）
+    var WINDOW_ID = "dev-window";  // 本窗口唯一 id（Python 侧启动时注入，会话按它分窗口存）
 
     // 暗色主题所需的 CSS 变量（不依赖系统 prefers-color-scheme，手动切换即可生效）。
     // 模板里这些变量的暗色取值原本只写在 @media(prefers-color-scheme:dark) 中，
@@ -1478,18 +1480,34 @@
           e.dataTransfer.setData("text/plain", id);
         } catch (err) {}
       });
-      el.addEventListener("dragend", function () {
+      el.addEventListener("dragend", function (e) {
         tabDragId = null;
         el.classList.remove("dragging");
         syncTabOrderFromDom();
         updateNav();
+        maybeCrossWindowDrop(id);
       });
       x.addEventListener("click", function (e) {
         e.stopPropagation(); closeTab(id);
       });
 
-      // 标签直接追加进可滚动区（不再依赖已移除的 .spacer 占位）
-      document.getElementById("tabs").appendChild(el);
+      // 标签直接追加进可滚动区（不再依赖已移除的 .spacer 占位）。
+      // 跨窗口拖来时带 dropXScreen（屏幕 x），按指针落点插到对应标签之前。
+      var _tabs = document.getElementById("tabs");
+      if (typeof p.dropXScreen === "number" && _tabs.childElementCount > 0) {
+        var _ins = null;
+        for (var _i = 0; _i < _tabs.children.length; _i++) {
+          var _c = _tabs.children[_i];
+          if (_c === el || !_c.getBoundingClientRect) continue;
+          var _r = _c.getBoundingClientRect();
+          var _cx = window.screenX + _r.left + _r.width / 2;
+          if (p.dropXScreen < _cx) { _ins = _c; break; }
+        }
+        if (_ins) _tabs.insertBefore(el, _ins);
+        else _tabs.appendChild(el);
+      } else {
+        _tabs.appendChild(el);
+      }
 
       var iframe = document.createElement("iframe");
       // scrollY：恢复上次关闭本软件时的阅读位置（由 Python 侧从会话配置带入）
@@ -1756,12 +1774,13 @@
                 e.dataTransfer.setData("text/plain", t.id);
               } catch (err) {}
             });
-            d.addEventListener("dragend", function () {
+            d.addEventListener("dragend", function (e) {
               tabDragId = null;
               // 快速拖动可能残留多个 .dragging，统一清掉
               var ds = box.querySelectorAll(".li.dragging");
               for (var q = 0; q < ds.length; q++) ds[q].classList.remove("dragging");
               syncTabOrderFromList();
+              maybeCrossWindowDrop(t.id);
             });
             box.appendChild(d);
           })(tabs[i]);
@@ -1883,13 +1902,26 @@
           scroll[tabs[i].path] = Math.round(y) || 0;
         }
         var active = activeTab();
-        saveCfg({ session: { files: files, active: (active && active.path) ? active.path : "",
-                             scroll: scroll } });
+        // 多窗口：按本窗口 id 分文件存（mdpreview/.sessions/<wid>.json），各窗口互不覆盖。
+        if (hasApi() && window.pywebview.api.set_session) {
+          window.pywebview.api.set_session(WINDOW_ID, {
+            files: files,
+            active: (active && active.path) ? active.path : "",
+            scroll: scroll,
+            lastActive: Date.now()
+          });
+        }
       } catch (e) {}
     }
     // 窗口被关闭/进程退出前的最后一道保险：尽力再写一次会话
     window.addEventListener("beforeunload", function () { try { saveSession(); } catch (e) {} });
     window.addEventListener("pagehide", function () { try { saveSession(); } catch (e) {} });
+    // 窗口获得焦点 → 通知 Python 更新"最近活跃"时间（决定双击 .md 并入哪个窗口）
+    function _markActive() {
+      try { if (hasApi() && window.pywebview.api.mark_active) window.pywebview.api.mark_active(); } catch (e) {}
+    }
+    window.addEventListener("focus", _markActive);
+    window.addEventListener("visibilitychange", function () { if (!document.hidden) _markActive(); });
 
     function closeTab(id) {
       var idx = -1;
@@ -1945,6 +1977,62 @@
       updateNav();
       saveSession();
       syncTreeCloseBtns();        // 被关文件行尾的 × 收起
+    }
+
+    // ---- 跨窗口拖拽支持（多窗口）----
+    function getWindowScreenRect() {
+      try {
+        return { left: window.screenX, top: window.screenY,
+                 right: window.screenX + window.outerWidth,
+                 bottom: window.screenY + window.outerHeight };
+      } catch (e) { return null; }
+    }
+    function getTabsScreenRect() {
+      try {
+        var r = document.getElementById("tabs").getBoundingClientRect();
+        return { left: window.screenX + r.left, top: window.screenY + r.top,
+                 right: window.screenX + r.right, bottom: window.screenY + r.bottom };
+      } catch (e) { return null; }
+    }
+    // 仅移除标签 DOM / iframe / 数组项（不弹"未保存"确认），供跨窗口移动后清理源窗口。
+    function removeTabOnly(id) {
+      var idx = -1;
+      for (var i = 0; i < tabs.length; i++) { if (tabs[i].id === id) { idx = i; break; } }
+      if (idx < 0) return;
+      tabs[idx].el.remove();
+      tabs[idx].iframe.remove();
+      tabs.splice(idx, 1);
+      if (tabs.length === 0) {
+        activeId = null;
+        document.getElementById("views").innerHTML =
+          '<div class="empty">没有打开的文档 &mdash; 双击任意 .md 即可在此打开</div>';
+        locatePath = null; markTreeFile(""); syncTreeCloseBtns();
+        var tocBox = document.getElementById("toc");
+        if (tocBox) tocBox.innerHTML = '<div class="sb-err" style="color:#6e7781">（没有打开的文档）</div>';
+        updateNav(); refreshTabListIfOpen(); saveSession();
+        return;
+      }
+      var activeIdx = -1;
+      for (var i = 0; i < tabs.length; i++) { if (tabs[i].id === activeId) { activeIdx = i; break; } }
+      if (activeIdx < 0) activate(tabs[Math.max(0, idx - 1)].id);
+      updateNav(); saveSession(); syncTreeCloseBtns();
+    }
+    // 拖标签松手时：交给 Python 用真实光标位置判定「移到别的窗口」还是「撕下到新窗口」。
+    // （HTML5 拖拽在窗口外松手时 clientX/Y 会被钳制到窗口边缘，故坐标判定放在 Python 侧用 GetCursorPos 取真实值。）
+    function maybeCrossWindowDrop(id) {
+      try {
+        if (!(window.pywebview && window.pywebview.api && window.pywebview.api.drop_tab)) return;
+        var t = null;
+        for (var i = 0; i < tabs.length; i++) { if (tabs[i].id === id) { t = tabs[i]; break; } }
+        if (!t) return;
+        var html = "";
+        try { html = t.iframe.srcdoc || ""; } catch (e) {}
+        var tab = { name: t.name, path: t.path || "", html: html, scrollY: (t.scrollY || 0) };
+        var p = window.pywebview.api.drop_tab(tab);
+        Promise.resolve(p).then(function (res) {
+          if (res && (res.action === "move" || res.action === "new")) removeTabOnly(id);
+        }).catch(function () {});
+      } catch (e) {}
     }
 
     function applyTheme(iframe) {
@@ -2429,6 +2517,11 @@
         });
         var ha = document.getElementById("helpAbout");
         if (ha) ha.addEventListener("click", function () { toggleHelpMenu(false); showAboutModal(); });
+        var hnw = document.getElementById("helpNewWin");
+        if (hnw) hnw.addEventListener("click", function () {
+          toggleHelpMenu(false);
+          try { if (window.pywebview.api.new_window) window.pywebview.api.new_window(); } catch (e) {}
+        });
         var hu = document.getElementById("helpUpdate");
         if (hu) hu.addEventListener("click", function () { toggleHelpMenu(false); checkUpdateFlow(true); });
         var hc = document.getElementById("helpAutoChk");

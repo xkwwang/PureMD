@@ -32,6 +32,19 @@ def script_dir():
     return os.path.dirname(os.path.abspath(__file__))
 
 
+# 多窗口：每个窗口是一个独立的 PureMD 进程，各自监听一个本地 TCP 端口；实例之间
+# 用注册表（mdpreview/.instances/<pid>.json，记录 {pid, port, wid, lastActive}）互相
+# 发现，不再用单例 .hub.lock。这样「拖标签到别的窗口」= 把标签 payload 经 TCP 发给那个
+# 进程；「把标签撕下到空白处」= 拉起一个新的 PureMD 进程承载该标签。每个进程仍只有
+# 一个窗口，故 js_inject 里的 webview.windows[0] 始终有效。
+INST_DIR = os.path.join(script_dir(), "mdpreview", ".instances")
+SESS_DIR = os.path.join(script_dir(), "mdpreview", ".sessions")
+MY_PID = os.getpid()
+MY_WID = None        # 本窗口唯一 id（启动时生成，并注入前端 WINDOW_ID）
+MY_PORT = None       # 本窗口监听端口
+_last_active_write = [0.0]   # update_last_active 节流时间戳
+
+
 def lock_path():
     return os.path.join(script_dir(), LOCK_REL)
 
@@ -916,6 +929,40 @@ class Api:
         except Exception:
             return False
 
+    # ---- 多窗口：跨窗口拖拽相关（前端 dragend 时调用）----
+    def mark_active(self):
+        """本窗口获得焦点 → 更新最近活跃时间（双击 .md 据此决定并入哪个窗口）。"""
+        try:
+            mark_active()
+        except Exception:
+            pass
+        return True
+
+    def drop_tab(self, tab):
+        """拖标签松手时由前端调用：用真实光标位置判定移到别的窗口 / 撕下到新窗口。
+
+        返回 {"action":"move"|"new"|"none"}；前端只在 move/new 时移除源标签。
+        """
+        try:
+            return cross_window_drop(tab)
+        except Exception:
+            return {"action": "none"}
+
+    def new_window(self):
+        """开一个空白新窗口。"""
+        try:
+            return bool(new_window())
+        except Exception:
+            return False
+
+    def set_session(self, wid, obj):
+        """按窗口 id 写入该窗口的会话（各窗口独立存，互不覆盖）。"""
+        try:
+            save_session_file(str(wid), obj)
+        except Exception:
+            pass
+        return True
+
     # ---- 窗口控制：优先 pywebview，失败则回退 Windows 原生消息 ----
     # 回退很关键：一旦 pywebview 侧调用失效，窗口会「关不掉 / 最小不了」。
     _drag_origin = None
@@ -1482,6 +1529,7 @@ def js_inject(payload):
         js = ("(window.__addTab?window.__addTab"
               ":function(p){(window.__pending=window.__pending||[]).push(p)})(%s)") % json.dumps(payload)
         webview.windows[0].evaluate_js(js)
+        update_last_active()   # 收到标签 = 本窗口被使用，更新最近活跃时间
         raise_window()   # 新增标签页后，把窗口从后台/最小化状态提到最前
         return True
     except Exception:
@@ -1550,6 +1598,400 @@ def clear_lock():
         pass
 
 
+# ---------------------------------------------------------------- 实例注册表（多窗口）
+def _inst_dir():
+    try:
+        os.makedirs(INST_DIR, exist_ok=True)
+    except Exception:
+        pass
+    return INST_DIR
+
+
+def _sess_dir():
+    try:
+        os.makedirs(SESS_DIR, exist_ok=True)
+    except Exception:
+        pass
+    return SESS_DIR
+
+
+def _inst_file(pid=None):
+    return os.path.join(_inst_dir(), "%d.json" % (pid if pid is not None else MY_PID))
+
+
+def _uuid_str():
+    try:
+        import uuid
+        return uuid.uuid4().hex
+    except Exception:
+        return str(int(time.time() * 1000)) + "_" + str(MY_PID)
+
+
+def register_instance():
+    """把本窗口写入注册表；顺手清理已死进程的残骸文件。"""
+    try:
+        _inst_dir()
+        try:
+            for fn in os.listdir(INST_DIR):
+                if not fn.endswith(".json"):
+                    continue
+                try:
+                    p = int(fn[:-5])
+                except Exception:
+                    try:
+                        os.remove(os.path.join(INST_DIR, fn))
+                    except Exception:
+                        pass
+                    continue
+                if p == MY_PID:
+                    continue
+                if not pid_alive(p):
+                    try:
+                        os.remove(os.path.join(INST_DIR, fn))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        with open(_inst_file(), "w", encoding="utf-8") as f:
+            json.dump({"pid": MY_PID, "port": MY_PORT, "wid": MY_WID,
+                       "lastActive": time.time()}, f)
+    except Exception:
+        pass
+
+
+def update_last_active():
+    """记录「本窗口最近被使用」，用于双击 .md 时决定并入哪个窗口。"""
+    try:
+        now = time.time()
+        if now - _last_active_write[0] < 1.0:   # 节流：避免批量恢复会话时狂写
+            return
+        _last_active_write[0] = now
+        if not MY_WID:
+            return
+        with open(_inst_file(), "w", encoding="utf-8") as f:
+            json.dump({"pid": MY_PID, "port": MY_PORT, "wid": MY_WID,
+                       "lastActive": now}, f)
+    except Exception:
+        pass
+
+
+def unregister_instance():
+    try:
+        os.remove(_inst_file())
+    except Exception:
+        pass
+
+
+def list_instances(exclude_pid=None):
+    """返回存活实例列表（dict：pid/port/wid/lastActive）；默认排除自身。"""
+    out = []
+    try:
+        for fn in os.listdir(INST_DIR):
+            if not fn.endswith(".json"):
+                continue
+            try:
+                p = int(fn[:-5])
+            except Exception:
+                continue
+            if exclude_pid is not None and p == exclude_pid:
+                continue
+            fp = os.path.join(INST_DIR, fn)
+            try:
+                with open(fp, encoding="utf-8") as f:
+                    rec = json.load(f)
+            except Exception:
+                try:
+                    os.remove(fp)
+                except Exception:
+                    pass
+                continue
+            if not pid_alive(p):
+                try:
+                    os.remove(fp)
+                except Exception:
+                    pass
+                continue
+            out.append(rec)
+    except Exception:
+        pass
+    return out
+
+
+def most_recent_instance(exclude_pid=None):
+    recs = list_instances(exclude_pid=exclude_pid)
+    if not recs:
+        return None
+    recs.sort(key=lambda r: r.get("lastActive", 0), reverse=True)
+    return recs[0]
+
+
+# ---------------------------------------------------------------- 每窗口会话存储
+def save_session_file(wid, obj):
+    try:
+        d = _sess_dir()
+        fp = os.path.join(d, str(wid) + ".json")
+        tmp = fp + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, fp)
+    except Exception:
+        pass
+
+
+def load_session_file(wid):
+    try:
+        fp = os.path.join(_sess_dir(), str(wid) + ".json")
+        if os.path.isfile(fp):
+            with open(fp, encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return None
+
+
+def list_sessions():
+    out = []
+    try:
+        for fn in os.listdir(_sess_dir()):
+            if not fn.endswith(".json"):
+                continue
+            fp = os.path.join(_sess_dir(), fn)
+            try:
+                with open(fp, encoding="utf-8") as f:
+                    rec = json.load(f)
+            except Exception:
+                try:
+                    os.remove(fp)
+                except Exception:
+                    pass
+                continue
+            rec["_wid"] = fn[:-5]
+            out.append(rec)
+    except Exception:
+        pass
+    return out
+
+
+def most_recent_session():
+    recs = list_sessions()
+    if not recs:
+        return None
+    recs.sort(key=lambda r: r.get("lastActive", 0), reverse=True)
+    return recs[0]
+
+
+def _build_session_payloads(sess, first_payload):
+    """把会话记录（files/active/scroll）还原成一组 make_payload。
+
+    跳过与「本次双击启动的文件」重复的那条，避免多出一个标签；
+    并带上上次读到的滚动位置，加载后自动滚回原位。
+    """
+    out = []
+    try:
+        if not isinstance(sess, dict):
+            return out
+        _paths = []
+        for _p in (sess.get("files") or []):
+            if isinstance(_p, str) and os.path.isfile(_p) and _p not in _paths:
+                _paths.append(_p)
+        _active = sess.get("active") or ""
+        if _active in _paths:
+            _paths.remove(_active)
+            _paths.append(_active)   # 激活项排最后 → 恢复后即当前标签
+        _scroll = sess.get("scroll") if isinstance(sess.get("scroll"), dict) else {}
+        _scroll_abs = {}
+        for _k, _v in _scroll.items():
+            try:
+                _scroll_abs[os.path.abspath(_k)] = int(_v or 0)
+            except Exception:
+                pass
+        _first_path = (first_payload or {}).get("path")
+        for _p in _paths:
+            if _first_path and os.path.abspath(_p) == os.path.abspath(_first_path):
+                continue
+            try:
+                _pay = make_payload(_p)
+                _pay["scrollY"] = _scroll_abs.get(os.path.abspath(_p), 0)
+                out.append(_pay)
+            except Exception:
+                pass
+        if _first_path and isinstance(first_payload, dict):
+            _y = _scroll_abs.get(os.path.abspath(_first_path))
+            if _y:
+                first_payload["scrollY"] = _y
+    except Exception:
+        pass
+    return out
+
+
+# ---------------------------------------------------------------- 跨窗口拖拽相关 IPC
+def _query_rect(port, timeout=0.4):
+    """向某端口请求其窗口/标签栏屏幕矩形（用于跨窗口拖拽命中检测）。"""
+    try:
+        s = socket.socket()
+        s.settimeout(timeout)
+        s.connect(("127.0.0.1", port))
+        s.sendall(json.dumps({"__ctl": "rect"}).encode("utf-8"))
+        s.shutdown(socket.SHUT_WR)
+        resp = b""
+        try:
+            while True:
+                c = s.recv(1 << 16)
+                if not c:
+                    break
+                resp += c
+        except Exception:
+            pass
+        s.close()
+        txt = resp.strip().decode("utf-8", "ignore")
+        if not txt:
+            return None
+        return json.loads(txt)
+    except Exception:
+        return None
+
+
+def find_drop_target(sx, sy):
+    """根据屏幕坐标，找出落在哪个其它 PureMD 窗口上（优先命中其标签栏）。
+
+    返回 {"action":"move","port":..,"wid":..} 或 None（落在桌面/其它程序 → 应撕下到新窗口）。
+    """
+    recs = list_instances(exclude_pid=MY_PID)
+    best = None
+    for rec in recs:
+        port = rec.get("port")
+        if not port:
+            continue
+        rc = _query_rect(port)
+        if not rc:
+            continue
+        win = rc.get("win")
+        if not win:
+            continue
+        in_win = (win.get("left", 0) <= sx <= win.get("right", 0) and
+                  win.get("top", 0) <= sy <= win.get("bottom", 0))
+        if not in_win:
+            continue
+        tabs = rc.get("tabs")
+        on_tabs = bool(tabs) and (tabs.get("left", 0) <= sx <= tabs.get("right", 0) and
+                                  tabs.get("top", 0) <= sy <= tabs.get("bottom", 0))
+        score = 2 if on_tabs else 1
+        if best is None or score > best[0]:
+            best = (score, rec)
+    if best:
+        return {"action": "move", "port": best[1].get("port"), "wid": best[1].get("wid")}
+    return None
+
+
+def move_tab_to(port, tab, sx, sy):
+    """把标签经 TCP 发给目标进程（目标 handle_client 走 __ctl:receive_tab → js_inject）。"""
+    if not isinstance(tab, dict):
+        return False
+    payload = dict(tab)
+    payload["dropXScreen"] = sx
+    payload["dropYScreen"] = sy
+    return send_to_hub({"__ctl": "receive_tab", "tab": payload}, port) == "OK"
+
+
+def launch_exe(args):
+    """拉起一个新的 PureMD 进程（独立窗口）。冻结后用 exe 自身；未冻结退化为 pythonw + 脚本。"""
+    try:
+        if getattr(sys, "frozen", False):
+            cmd = [os.path.abspath(sys.executable)] + list(args)
+        else:
+            cmd = [os.path.abspath(sys.executable), os.path.abspath(sys.argv[0])] + list(args)
+        subprocess.Popen(cmd, close_fds=True,
+                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return True
+    except Exception:
+        return False
+
+
+def spawn_window_with_tab(tab):
+    """把标签数据落盘后拉起新进程承载它（撕下到新窗口）。"""
+    try:
+        d = _sess_dir()
+        fp = os.path.join(d, "spawn_%s.json" % _uuid_str())
+        with open(fp, "w", encoding="utf-8") as f:
+            json.dump(tab, f, ensure_ascii=False)
+        return launch_exe(["--newtab", fp])
+    except Exception:
+        return False
+
+
+def new_window():
+    return launch_exe(["--new-window"])
+
+
+def mark_active():
+    update_last_active()
+
+
+def _read_spawn_file(fp):
+    try:
+        with open(fp, encoding="utf-8") as f:
+            tab = json.load(f)
+        try:
+            os.remove(fp)
+        except Exception:
+            pass
+        return tab
+    except Exception:
+        return None
+
+
+def _rect_json():
+    """返回本窗口的屏幕矩形 + 标签栏屏幕矩形（供其它实例命中检测）。"""
+    try:
+        import webview
+        if not webview.windows:
+            return None
+        s = webview.windows[0].evaluate_js(
+            "JSON.stringify({win:getWindowScreenRect(), tabs:getTabsScreenRect()})")
+        return json.loads(s) if s else None
+    except Exception:
+        return None
+
+
+def _own_window_rect():
+    """本进程主窗口的屏幕矩形 (left, top, right, bottom)。"""
+    try:
+        h = _own_main_hwnd()
+        if not h:
+            return None
+        r = _RECT()
+        _user32.GetWindowRect(h, ctypes.byref(r))
+        return (r.left, r.top, r.right, r.bottom)
+    except Exception:
+        return None
+
+
+def cross_window_drop(tab):
+    """拖标签松手时由前端调用：用真实光标位置判定是「移到别的窗口」还是「撕下到新窗口」。
+
+    关键点：HTML5 拖拽在窗口外松手时 clientX/Y 会被钳制到窗口边缘，不可靠；
+    故这里直接在 Python 侧用 GetCursorPos 取真实光标屏幕坐标，再与注册表里其它
+    窗口的矩形做命中检测。落在自己窗口内（含标签栏重排）则不做任何跨窗口动作。
+    """
+    try:
+        if not isinstance(tab, dict):
+            return {"action": "none"}
+        pt = ctypes.wintypes.POINT()
+        ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
+        sx, sy = int(pt.x), int(pt.y)
+        wr = _own_window_rect()
+        if wr and wr[0] <= sx <= wr[2] and wr[1] <= sy <= wr[3]:
+            return {"action": "none"}   # 落在自己窗口内 → 纯本窗口重排，已处理完
+        target = find_drop_target(sx, sy)
+        if target and target.get("action") == "move" and target.get("port"):
+            ok = move_tab_to(target["port"], tab, sx, sy)
+            return {"action": "move"} if ok else {"action": "none"}
+        ok = spawn_window_with_tab(tab)
+        return {"action": "new"} if ok else {"action": "none"}
+    except Exception:
+        return {"action": "none"}
+
+
 # srv 在 start_hub 内赋值，被 server_loop / atexit 捕获
 srv = None
 
@@ -1580,8 +2022,24 @@ def handle_client(c):
         except Exception:
             pass
         os._exit(0)  # 立即退出，释放端口，由新实例接管
-    if not isinstance(payload, dict) or "__ctl" in payload:
+    ctl = payload.get("__ctl") if isinstance(payload, dict) else None
+    if ctl == "rect":
+        try:
+            r = _rect_json()
+            c.sendall((json.dumps(r) if r else "null").encode("utf-8") + b"\n")
+        except Exception:
+            pass
         return
+    if ctl == "receive_tab":
+        tab = payload.get("tab") if isinstance(payload.get("tab"), dict) else None
+        ok = js_inject(tab) if tab else False
+        try:
+            c.sendall(b"OK\n" if ok else b"WAIT\n")
+        except Exception:
+            pass
+        return
+    if ctl is not None:
+        return   # 未知指令，忽略
     ok = js_inject(payload)
     try:
         c.sendall(b"OK\n" if ok else b"WAIT\n")
@@ -1669,14 +2127,15 @@ def bind_hub():
     return s, s.getsockname()[1]
 
 
-def start_hub(first_payload):
-    global srv
-    # 若已有实例（但本函数被调用说明 main 已判定无存活实例或需要接管），
-    # 这里不再主动杀，直接选端口启动；端口冲突已由 bind_hub 的回退解决。
+def start_hub(first_payload, wid=None, session_obj=None, restore_session=True):
+    global srv, MY_WID, MY_PORT
+    # 多窗口：本函数每次都开一个独立的窗口进程；端口冲突已由 bind_hub 的回退解决。
     srv, used_port = bind_hub()
     srv.listen(8)
-    write_lock(used_port)
-    atexit.register(clear_lock)
+    MY_PORT = used_port
+    MY_WID = wid or _uuid_str()
+    register_instance()
+    atexit.register(unregister_instance)
     atexit.register(lambda: srv.close())
 
     threading.Thread(target=server_loop, daemon=True).start()
@@ -1709,6 +2168,11 @@ def start_hub(first_payload):
         hub_html = hub_html.replace('var APP_VERSION = "dev";', 'var APP_VERSION = "%s";' % APP_VERSION, 1)
     except Exception:
         pass
+    # 注入本窗口唯一 id（前端 saveSession 按它分窗口存会话，互不覆盖）
+    try:
+        hub_html = hub_html.replace('var WINDOW_ID = "dev-window";', 'var WINDOW_ID = "%s";' % MY_WID, 1)
+    except Exception:
+        pass
     # 会话恢复：把上次关闭时开着的标签按保存顺序重建（激活项排最后，恢复后即
     # 当前标签）。重要：这些 payload 累计渲染后 HTML 常达 1~2MB+，绝不能像旧版
     # 那样内联进 hub_html 再走 create_window(html=...) 注入——pywebview 的 Edge
@@ -1717,47 +2181,22 @@ def start_hub(first_payload):
     # 真正根因，与 <body> 标签污染无关）。故此处只“收集”payload，待窗口就绪后改
     # 走与“运行时双击新标签”完全相同的通道（js_inject → evaluate_js，即
     # ExecuteScriptAsync，无 2MB 限制）逐条 addTab，从根上避开该限制。
+    # 多窗口下会话按窗口 id 各自存（mdpreview/.sessions/<wid>.json）：
+    #   · 指定了 session_obj（如从某窗口拖来的标签）→ 直接用它；
+    #   · 否则且仅当 restore_session=True（即冷启动、无其它窗口在跑）→ 取
+    #     「最近使用过的窗口」的会话恢复；--new-window / --newtab 都不恢复。
     _session_payloads = []
-    try:
-        _sess = _cfg.get("session") if isinstance(_cfg, dict) else None
-        if isinstance(_sess, dict):
-            _paths = []
-            for _p in (_sess.get("files") or []):
-                if isinstance(_p, str) and os.path.isfile(_p) and _p not in _paths:
-                    _paths.append(_p)
-            _active = _sess.get("active") or ""
-            if _active in _paths:
-                _paths.remove(_active)
-                _paths.append(_active)   # 激活项排最后 → 恢复后即当前标签
-            # 上次关闭时每个文件的阅读位置（滚动像素），按绝对路径索引
-            _scroll = _sess.get("scroll") if isinstance(_sess.get("scroll"), dict) else {}
-            _scroll_abs = {}
-            for _k, _v in _scroll.items():
-                try:
-                    _scroll_abs[os.path.abspath(_k)] = int(_v or 0)
-                except Exception:
-                    pass
-            _first_path = (first_payload or {}).get("path")
-            for _p in _paths:
-                if _first_path and os.path.abspath(_p) == os.path.abspath(_first_path):
-                    continue   # 避免与“本次双击启动的文件”重复成两个标签
-                try:
-                    _pay = make_payload(_p)
-                    # 带上上次读到的位置，前端加载完成后自动滚回原位（不是从头开始）
-                    _pay["scrollY"] = _scroll_abs.get(os.path.abspath(_p), 0)
-                    _session_payloads.append(_pay)
-                except Exception:
-                    pass
-            # 本次双击启动的文件同样适用：若上次会话记过它的位置，就从原位继续
-            try:
-                if _first_path and isinstance(first_payload, dict):
-                    _y = _scroll_abs.get(os.path.abspath(_first_path))
-                    if _y:
-                        first_payload["scrollY"] = _y
-            except Exception:
-                pass
-    except Exception:
-        pass
+    if session_obj is not None:
+        _session_payloads = _build_session_payloads(session_obj, first_payload)
+    elif restore_session:
+        _sess = most_recent_session()
+        if _sess is None:
+            # 兼容升级前的单例会话：旧版把会话存在 config.json 的 "session" 键，
+            # 新版改成按窗口 id 分文件存（.sessions/<wid>.json）。首次启动时没有
+            # 任何窗口会话文件，就回退到旧会话，避免升级后"上次打开的标签全没了"。
+            _sess = (_cfg.get("session") if isinstance(_cfg, dict) else None)
+        if _sess:
+            _session_payloads = _build_session_payloads(_sess, first_payload)
     # 仅允许标题栏（hub.html 里的 .pm-drag-region）拖动窗口，避免点工具栏/标签误拖窗口。
     # 注意：标记类名不可使用 .pywebview-drag-region——那是 pywebview 内置 easy_drag 的
     # 选择器（body mousedown 监听无条件注册，easy_drag=False 也关不掉），复用它会激活
@@ -2023,6 +2462,18 @@ def main():
     if len(sys.argv) >= 2 and sys.argv[1] == "--selftest":
         _selftest()
         return
+    # 多窗口：显式开一个空白新窗口（手动"新窗口"入口的落地）
+    if len(sys.argv) >= 2 and sys.argv[1] == "--new-window":
+        _start_new_window(first_payload=None, restore_session=False)
+        return
+    # 多窗口：由别的窗口拖标签「撕下」而拉起，承载指定的标签数据文件
+    if len(sys.argv) >= 3 and sys.argv[1] == "--newtab":
+        tab = _read_spawn_file(sys.argv[2])
+        if not tab or not isinstance(tab, dict):
+            show_error("无法读取要打开的标签数据")
+            return
+        _start_new_window(first_payload=tab, restore_session=False)
+        return
     def _prompt_setup():
         """没给 .md 参数（例如直接双击 exe）时，询问是否关联 .md。"""
         try:
@@ -2055,16 +2506,19 @@ def main():
         show_error("生成预览失败：\n" + str(e))
         return
 
-    # 已有且活着的实例 → 尝试委托；若实例已损坏则不委托，杀掉它自己接管
-    pid, port = read_lock()
-    if pid and pid_alive(pid):
-        status = send_to_hub(payload, port)
+    # 已有且活着的实例 → 并入「最近使用过的那个窗口」；若它损坏/无响应，则直接开新窗口
+    # （多窗口下不再 kill 其它窗口，避免误杀用户正在用的另一个窗口）。
+    rec = most_recent_instance()
+    if rec and rec.get("port") and pid_alive(rec.get("pid", -1)):
+        status = send_to_hub(payload, rec["port"])
         if status == "OK":
             return
-        kill_hub(port)
-        time.sleep(0.6)
-    clear_lock()
     start_hub(payload)
+
+
+def _start_new_window(first_payload=None, restore_session=True):
+    """开一个独立的新窗口进程（多窗口的核心入口）。"""
+    start_hub(first_payload, wid=None, session_obj=None, restore_session=restore_session)
 
 
 if __name__ == "__main__":

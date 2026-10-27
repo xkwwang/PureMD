@@ -12,8 +12,16 @@ md_preview_app/_old_*/
 md_preview_app/PureMD/
 md_preview_app/open_md_preview/
 
-# ---- 运行时锁文件（单例端口锁） ----
-**/.hub.lock
+# ---- 运行时实例注册表 / 分窗会话（多窗口，不入库） ----
+mdpreview/.instances/
+mdpreview/.sessions/
+
+# ---- 旧单例端口锁（多窗口已弃用，仅为防残留） ----
+.hub.lock
+
+# ---- 本地截图与桌面零碎（不入库，仅本机） ----
+_shots/
+/*.png
 
 # ---- 系统与编辑器 ----
 *.tmp
