@@ -9,6 +9,7 @@ __pycache__/
 # ---- 分发包与旧构建（体积大，不入库；发布走 GitHub Releases） ----
 dist_share/
 md_preview_app/_old_*/
+md_preview_app/_build_test/
 md_preview_app/PureMD/
 md_preview_app/open_md_preview/
 

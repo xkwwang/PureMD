@@ -290,6 +290,38 @@
   }
   body.dark #hlPick { background: #161b22; border-color: #30363d; box-shadow: 0 6px 20px rgba(0, 0, 0, .6); }
   body.beige #hlPick { background: #f4ecd8; border-color: #d8cba8; }
+
+  /* ---- 查找栏（Ctrl+F）---- */
+  .findbar {
+    position: absolute; top: 8px; right: 14px; z-index: 60;
+    display: none; align-items: center; gap: 6px;
+    background: #fff; color: #24292f; border: 1px solid #d0d7de; border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0,0,0,.18); padding: 6px 8px; font-size: 13px;
+  }
+  body.dark .findbar { background: #161b22; color: #c9d1d9; border-color: #30363d; box-shadow: 0 6px 20px rgba(0,0,0,.55); }
+  body.beige .findbar { background: #f4ecd8; color: #4a3b28; border-color: #d8cba8; }
+  .findbar .find-input {
+    width: 200px; border: 1px solid #d0d7de; border-radius: 6px; padding: 4px 8px;
+    background: #fff; color: #24292f; outline: none; font-size: 13px;
+  }
+  body.dark .findbar .find-input { background: #0d1117; color: #c9d1d9; border-color: #30363d; }
+  body.beige .findbar .find-input { background: #fffdf7; color: #4a3b28; border-color: #d8cba8; }
+  .findbar .find-input:focus { border-color: #0969da; }
+  body.dark .findbar .find-input:focus { border-color: #1f6feb; }
+  .findbar .find-count { min-width: 54px; text-align: center; font-variant-numeric: tabular-nums; color: #57606a; }
+  body.dark .findbar .find-count { color: #8b949e; }
+  .findbar .find-count.none { color: #cf222e; }
+  body.dark .findbar .find-count.none { color: #ff7b72; }
+  .findbar .find-btn {
+    border: 1px solid #d0d7de; background: #f6f8fa; color: #24292f; border-radius: 6px;
+    min-width: 26px; height: 26px; cursor: pointer; font-size: 12px; line-height: 1; padding: 0 4px;
+  }
+  .findbar .find-btn:hover { background: #eaeef2; }
+  body.dark .findbar .find-btn { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+  body.dark .findbar .find-btn:hover { background: #30363d; }
+  .findbar .find-cs { font-size: 12px; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; user-select: none; white-space: nowrap; }
+  .findbar .find-sep { width: 1px; height: 18px; background: #d0d7de; margin: 0 2px; }
+  body.dark .findbar .find-sep { background: #30363d; }
   #hlPick .hl-row { display: flex; gap: 7px; }
   #hlPick .hl-sw { width: 18px; height: 18px; }
   /* 顶部 chrome：第一行 = 自绘标题栏（PureMD 文字 + 工具栏 + 窗口控制），第二行 = 标签栏 */
@@ -612,7 +644,7 @@
   body.beige #cfmBtns button.primary { background: #5f7a4a; border-color: #5f7a4a; color: #fff; }
 
   /* 左侧文件夹侧栏 */
-  #main { flex: 1 1 auto; display: flex; min-height: 0; min-width: 0; }  #sidebar {
+  #main { flex: 1 1 auto; display: flex; min-height: 0; min-width: 0; position: relative; }  #sidebar {
     position: relative;
     flex: 0 0 auto; width: 240px; min-width: 140px; max-width: 70vw;
     display: none; flex-direction: column;
@@ -889,6 +921,7 @@
         <button class="toolbtn" id="openBtn">打开</button>
         <button class="toolbtn" id="exportBtn" title="导出：PDF / Word（.docx）">导出</button>
         <button class="toolbtn" id="reloadBtn">重新加载</button>
+        <button class="toolbtn" id="findBtn" title="在本文中查找（Ctrl+F）">查找</button>
         <button class="toolbtn" id="helpBtn" title="帮助：反馈问题 / 关于本软件">帮助</button>
         <label><input type="checkbox" id="watchChk"> 自动刷新</label>
       </div>
@@ -1638,9 +1671,186 @@
       else if (sbMode === "hl") renderHlList();
       closeHlPop();
       saveSession();
+      onTabActivated();
       var _at = activeTab();
       if (_at) scheduleTreeSync(_at);           // 切标签时文件树跟着定位到该文件
       if (typeof updateEditUI === "function") updateEditUI();
+    }
+
+    // ================= 查找功能（Ctrl+F） =================
+    var findActive = false, findMarks = [], findIdx = -1, findQuery = "";
+    function findEnsureStyle(doc) {
+      try {
+        if (!doc || doc.getElementById("pm-find-style")) return;
+        var st = doc.createElement("style");
+        st.id = "pm-find-style";
+        st.textContent =
+          "mark.pm-find{background-color:rgba(6,182,212,.34)!important;color:inherit!important;" +
+            "padding:0 1px;border-radius:2px;" +
+            "-webkit-box-decoration-break:clone;box-decoration-break:clone;}" +
+          "mark.pm-find-current{background-color:#ff9e00!important;color:#1b1b1b!important;" +
+            "box-shadow:0 0 0 1px rgba(0,0,0,.25);}" +
+          "body.dark mark.pm-find{background-color:rgba(56,178,200,.42)!important;}" +
+          "body.dark mark.pm-find-current{background-color:#ffb020!important;color:#11151a!important;}" +
+          "body.beige mark.pm-find{background-color:rgba(10,120,140,.30)!important;}" +
+          "body.beige mark.pm-find-current{background-color:#c9760a!important;color:#fff8e7!important;}";
+        (doc.head || doc.documentElement).appendChild(st);
+      } catch (e) {}
+    }
+    function findClear(doc) {
+      try {
+        var ms = doc.querySelectorAll("mark.pm-find");
+        for (var i = ms.length - 1; i >= 0; i--) {
+          var m = ms[i];
+          m.parentNode.replaceChild(doc.createTextNode(m.textContent), m);
+        }
+        doc.normalize();
+      } catch (e) {}
+    }
+    function findWrapText(node, q, cs, marks) {
+      var text = node.nodeValue;
+      if (!text) return;
+      var hay = cs ? text : text.toLowerCase();
+      var q2 = cs ? q : q.toLowerCase();
+      var idx = 0, pos;
+      while ((pos = hay.indexOf(q2, idx)) !== -1) {
+        var end = pos + q2.length;
+        var before = text.slice(idx, pos);
+        var match = text.slice(pos, end);
+        var after = text.slice(end);
+        var frag = node.ownerDocument.createDocumentFragment();
+        if (before) frag.appendChild(node.ownerDocument.createTextNode(before));
+        var m = node.ownerDocument.createElement("mark");
+        m.className = "pm-find";
+        m.textContent = match;
+        frag.appendChild(m);
+        marks.push(m);
+        node.parentNode.insertBefore(frag, node);
+        node.nodeValue = after;
+        text = after; hay = cs ? text : text.toLowerCase();
+        idx = 0;
+      }
+    }
+    function findWalk(root, q, cs, marks) {
+      try {
+        var w = root.ownerDocument.createTreeWalker(root, 4, {
+          acceptNode: function (n) {
+            if (!n.nodeValue || !n.nodeValue.trim()) return 2;
+            var p = n.parentNode;
+            while (p) {
+              var tag = p.nodeName;
+              if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT" || tag === "MARK") return 2;
+              p = p.parentNode;
+            }
+            return 1;
+          }
+        }, false);
+        var nodes = [], n;
+        while ((n = w.nextNode())) nodes.push(n);
+        for (var i = 0; i < nodes.length; i++) findWrapText(nodes[i], q, cs, marks);
+      } catch (e) {}
+    }
+    function focusMark(i) {
+      if (!findMarks.length) return;
+      if (findIdx >= 0 && findMarks[findIdx]) findMarks[findIdx].classList.remove("pm-find-current");
+      findIdx = ((i % findMarks.length) + findMarks.length) % findMarks.length;
+      var m = findMarks[findIdx];
+      if (!m) return;
+      m.classList.add("pm-find-current");
+      try { m.scrollIntoView({ behavior: "smooth", block: "center" }); }
+      catch (e) { try { m.scrollIntoView(); } catch (e2) {} }
+      updateFindCount();
+    }
+    function updateFindCount() {
+      var el = document.getElementById("findCount");
+      if (!el) return;
+      var inp = document.getElementById("findInput");
+      if (!findMarks.length) {
+        el.textContent = (inp && inp.value) ? "无匹配" : "";
+        el.classList.toggle("none", !!(inp && inp.value));
+      } else {
+        el.textContent = (findIdx + 1) + " / " + findMarks.length;
+        el.classList.remove("none");
+      }
+    }
+    function runFind(q) {
+      findQuery = q || "";
+      var inp = document.getElementById("findInput");
+      if (inp) inp.value = findQuery;
+      var t = activeTab();
+      if (!t) { findMarks = []; findIdx = -1; updateFindCount(); return; }
+      var d = editDocOf(t);
+      if (!d) { findMarks = []; findIdx = -1; updateFindCount(); return; }
+      findClear(d);
+      findMarks = []; findIdx = -1;
+      if (!findQuery) { updateFindCount(); return; }
+      if (t.editing) { setStatus("编辑模式下暂不支持查找，退出编辑后可查找"); updateFindCount(); return; }
+      findEnsureStyle(d);
+      var root = d.querySelector(".markdown-body") || d.body;
+      var cs = document.getElementById("findCs");
+      cs = cs ? cs.checked : false;
+      findWalk(root, findQuery, cs, findMarks);
+      if (findMarks.length) focusMark(0);
+      else updateFindCount();
+    }
+    function findNext() { if (findMarks.length) focusMark(findIdx + 1); }
+    function findPrev() { if (findMarks.length) focusMark(findIdx - 1); }
+    function buildFindBar() {
+      if (document.getElementById("findbar")) return;
+      var bar = document.createElement("div");
+      bar.id = "findbar"; bar.className = "findbar";
+      bar.innerHTML =
+        '<input id="findInput" class="find-input" type="text" placeholder="查找…  (Ctrl+F)" spellcheck="false">' +
+        '<span id="findCount" class="find-count"></span>' +
+        '<button id="findPrev" class="find-btn" title="上一个 (Shift+Enter)">&#9650;</button>' +
+        '<button id="findNext" class="find-btn" title="下一个 (Enter)">&#9660;</button>' +
+        '<span class="find-sep"></span>' +
+        '<label class="find-cs" title="区分大小写"><input type="checkbox" id="findCs"> 区分大小写</label>' +
+        '<span class="find-sep"></span>' +
+        '<button id="findClose" class="find-btn" title="关闭 (Esc)">&#10005;</button>';
+      var main = document.getElementById("main");
+      (main || document.body).appendChild(bar);
+      var inp = document.getElementById("findInput");
+      inp.addEventListener("keydown", function (e) {
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === "f" || e.key === "F")) {
+          e.preventDefault(); inp.select(); return;
+        }
+        if (e.key === "Enter") { e.preventDefault(); if (e.shiftKey) findPrev(); else findNext(); }
+        else if (e.key === "Escape") { e.preventDefault(); closeFind(); }
+        e.stopPropagation();
+      });
+      inp.addEventListener("input", function () { runFind(inp.value); });
+      document.getElementById("findNext").addEventListener("click", function () { findNext(); document.getElementById("findInput").focus(); });
+      document.getElementById("findPrev").addEventListener("click", function () { findPrev(); document.getElementById("findInput").focus(); });
+      document.getElementById("findClose").addEventListener("click", function () { closeFind(); });
+      var csel = document.getElementById("findCs");
+      csel.addEventListener("change", function () { runFind(document.getElementById("findInput").value); });
+    }
+    function openFind() {
+      buildFindBar();
+      var bar = document.getElementById("findbar");
+      if (bar) bar.style.display = "flex";
+      findActive = true;
+      var inp = document.getElementById("findInput");
+      if (inp) { inp.focus(); inp.select(); }
+    }
+    function closeFind() {
+      findActive = false;
+      var bar = document.getElementById("findbar");
+      if (bar) bar.style.display = "none";
+      var t = activeTab();
+      if (t) { var d = editDocOf(t); if (d) findClear(d); }
+      findMarks = []; findIdx = -1; findQuery = "";
+      var inp = document.getElementById("findInput"); if (inp) inp.value = "";
+      updateFindCount();
+    }
+    function onTabActivated() {
+      if (!findActive) return;
+      var inp = document.getElementById("findInput");
+      if (inp && inp.value) { runFind(inp.value); return; }
+      var t = activeTab();
+      if (t) { var d = editDocOf(t); if (d) findClear(d); }
+      findMarks = []; findIdx = -1; updateFindCount();
     }
 
     // 标签栏左右滚动
@@ -3862,6 +4072,9 @@
             if (t.editing) { ev.preventDefault(); leaveEdit(t); }
             return;
           }
+          if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && !ev.altKey && (ev.key === "f" || ev.key === "F")) {
+            ev.preventDefault(); openFind(); return;
+          }
           if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && (ev.key === "s" || ev.key === "S")) {
             ev.preventDefault();                 // 焦点在正文里时 Ctrl+S 也要能存
             saveTab(t);
@@ -4073,6 +4286,7 @@
         pm.content.focus();
       } catch (e) { setStatus("进入编辑模式失败：" + e); return; }
       t.editing = true;
+      closeFind();
       closeHlPop();
       updateEditUI();
       setStatus("编辑中：直接改文字；改完点「保存」写回源文件（Ctrl+S）");
@@ -4347,6 +4561,9 @@
         });
         document.addEventListener("keydown", function (e) {
           if (e.key === "Escape") closeHlPick();
+          if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === "f" || e.key === "F")) {
+            e.preventDefault(); openFind(); return;
+          }
           if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey &&
               (e.key === "b" || e.key === "B")) {
             e.preventDefault();
@@ -4359,6 +4576,8 @@
             else if (e.key === "0") { e.preventDefault(); setScale(1); }
           }
         });
+        var fbtn = document.getElementById("findBtn");
+        if (fbtn) fbtn.addEventListener("click", function (e) { e.stopPropagation(); openFind(); });
         // Ctrl+滚轮：自己接管，只缩放正文；界面之所以不跟着变大，是因为 zoom 只加在
         // 每个标签页 iframe 的 <html> 上（父页面一个像素都不缩放）。preventDefault
         // 同时也挡住 WebView2 自带的整页缩放，避免两套缩放叠加。
