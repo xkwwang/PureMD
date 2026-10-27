@@ -4,7 +4,7 @@
 //   2) 匹配数 / 当前序号显示正确，Enter / Shift+Enter 前后跳转
 //   3) 关掉查找栏会清除高亮
 // 单窗口即可，不触碰用户正在用的真实实例（独立 APPDATA + 独立 build 目录）。
-import { spawn } from "child_process";
+import { spawn, execFileSync } from "child_process";
 import { existsSync, readdirSync, readFileSync, rmSync, mkdirSync, writeFileSync } from "fs";
 import os from "os";
 import path from "path";
@@ -18,6 +18,7 @@ const EXE = process.env.PUREMD_EXE ||
   "D:\\00. APP\\PureMD\\md_preview_app\\_build_test\\PureMD\\PureMD.exe";
 const INTERNAL = path.join(path.dirname(EXE), "_internal");
 const INST_DIR = path.join(INTERNAL, "mdpreview", ".instances");
+const SESS_DIR = path.join(INTERNAL, "mdpreview", ".sessions");
 
 async function fetchJSON(url) {
   for (let i = 0; i < 80; i++) {
@@ -46,10 +47,15 @@ async function connect(port) {
 }
 function killMine() {
   try {
-    const target = EXE.replace(/\\/g, "\\\\");
-    spawn("powershell", ["-NoProfile", "-Command",
-      `Get-CimInstance Win32_Process -Filter "ExecutablePath LIKE '%${path.basename(path.dirname(INTERNAL))}\\\\PureMD\\\\PureMD.exe'" | ` +
-      "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"], { stdio: "ignore" });
+    // 同步、按精确可执行路径杀掉本测试启动的 PureMD（含子进程树），
+    // 避免上一轮残留 exe 占用 CDP 端口导致下一轮连错实例。
+    // 仅匹配 EXE 自身路径，不会误杀用户正在用的同名实例。
+    const exep = EXE.replace(/\//g, "\\");
+    execFileSync("powershell", ["-NoProfile", "-Command",
+      `$p='${exep.replace(/'/g, "''")}';` +
+      `Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $p } | ` +
+      `ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`],
+      { stdio: "ignore", timeout: 15000 });
   } catch (e) {}
 }
 async function launchExe(args, cdpPort, appdata) {
@@ -63,6 +69,7 @@ async function main() {
   killMine();
   await sleep(800);
   try { rmSync(INST_DIR, { recursive: true, force: true }); } catch (e) {}
+  try { rmSync(SESS_DIR, { recursive: true, force: true }); } catch (e) {}
   const BASE = path.join(os.tmpdir(), "find_e2e_" + Date.now());
   mkdirSync(BASE, { recursive: true });
   const md = path.join(BASE, "doc.md");
@@ -77,14 +84,15 @@ async function main() {
   await sleep(1500);
   const cdp = await connect(9251);
 
-  // 等 iframe 正文渲染出来
+  // 等 iframe 正文渲染出来（且整篇内容就位：含末尾的 banana 段落）
   let ready = false;
   for (let i = 0; i < 40; i++) {
-    ready = await cdp.eval("!!(document.querySelector('#views iframe') && document.querySelector('#views iframe').contentDocument && document.querySelector('#views iframe').contentDocument.querySelector('.markdown-body'))");
+    ready = await cdp.eval("(()=>{var fr=document.querySelector('#views iframe');if(!fr||!fr.contentDocument)return false;var mb=fr.contentDocument.querySelector('.markdown-body');return !!mb && /banana/.test(mb.textContent);})()");
     if (ready) break;
     await sleep(250);
   }
-  check(ready, "iframe 正文（.markdown-body）已渲染");
+  check(ready, "iframe 正文（.markdown-body）已完整渲染");
+  await sleep(400); // 额外稳定时间，避免边渲染边查找
 
   // 查找栏初始隐藏
   const hidden0 = await cdp.eval("(()=>{var b=document.getElementById('findbar');return !b||b.style.display==='none';})()");

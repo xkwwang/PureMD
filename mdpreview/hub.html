@@ -1773,6 +1773,7 @@
         el.classList.remove("none");
       }
     }
+    var findRetryTimer = null;
     function runFind(q) {
       findQuery = q || "";
       var inp = document.getElementById("findInput");
@@ -1781,6 +1782,12 @@
       if (!t) { findMarks = []; findIdx = -1; updateFindCount(); return; }
       var d = editDocOf(t);
       if (!d) { findMarks = []; findIdx = -1; updateFindCount(); return; }
+      // 正文可能还没渲染完（刚打开就按 Ctrl+F）：稍后整篇就位再查一次
+      if (d.readyState !== "complete" || !(d.querySelector(".markdown-body"))) {
+        if (findRetryTimer) clearTimeout(findRetryTimer);
+        findRetryTimer = setTimeout(function () { runFind(findQuery); }, 120);
+        return;
+      }
       findClear(d);
       findMarks = []; findIdx = -1;
       if (!findQuery) { updateFindCount(); return; }
