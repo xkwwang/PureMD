@@ -214,6 +214,32 @@ async function main() {
   const expected = "# Heading\n\npear pear pear\n\nbanana pear pear\n";
   check(savedTxt.replace(/\r\n/g, "\n") === expected, "源文件内容应与预期一致 (got " + JSON.stringify(savedTxt) + ")");
 
+  // ===== 工具栏最右侧搜索框 =====
+  console.log("== 工具栏搜索框 ==");
+  const tfVisible = await cdp.eval("!!document.getElementById('topFind')");
+  check(tfVisible, "工具栏右侧应有搜索框");
+  // 此刻正文已是被保存后的内容：pear×5（第一段 3 + 第二段 2）
+  await cdp.eval(`(()=>{var t=document.getElementById('topFind');t.value='pear';t.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await sleep(300);
+  const tfBarShown = await cdp.eval("document.getElementById('findbar').style.display==='flex'");
+  check(tfBarShown, "搜索框输入后查找栏应显示");
+  const tfMarks = await cdp.eval("document.querySelector('#views iframe').contentDocument.querySelectorAll('mark.pm-find').length");
+  check(tfMarks === 5, "搜索框输入 pear 应命中 5 处 (got " + tfMarks + ")");
+  const tfSync = await cdp.eval("document.getElementById('findInput').value");
+  check(tfSync === "pear", "查找栏应同步搜索框的词 (got " + JSON.stringify(tfSync) + ")");
+  // Enter → 下一个
+  await cdp.eval(`(()=>{var t=document.getElementById('topFind');t.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));})()`);
+  await sleep(200);
+  const tfCnt = await cdp.eval("document.getElementById('findCount').textContent");
+  check(tfCnt === "2 / 5", "搜索框 Enter 后应 2 / 5 (got " + JSON.stringify(tfCnt) + ")");
+  // Esc 关闭
+  await cdp.eval(`(()=>{var t=document.getElementById('topFind');t.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));})()`);
+  await sleep(200);
+  const tfHidden = await cdp.eval("document.getElementById('findbar').style.display==='none'");
+  check(tfHidden, "搜索框 Esc 后查找栏应隐藏");
+  const tfMarks0 = await cdp.eval("document.querySelector('#views iframe').contentDocument.querySelectorAll('mark.pm-find').length");
+  check(tfMarks0 === 0, "搜索框 Esc 后高亮应清除 (got " + tfMarks0 + ")");
+
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   cdp.close();
   killMine();

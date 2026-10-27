@@ -261,6 +261,22 @@
   #actbar .ab-sep { width: 1px; height: 15px; background: #d8dee4; margin: 0 2px; }
   body.dark #actbar .ab-sep { background: #30363d; }
   body.beige #actbar .ab-sep { background: #d8cba8; }
+  /* 工具栏最右侧的快捷搜索框：输入即搜 */
+  #actbar .ab-find {
+    height: 25px; width: 118px; padding: 0 8px;
+    border: 1px solid #d0d7de; border-radius: 6px;
+    background: #fff; color: #24292f; outline: none;
+    font-size: 12px; line-height: 1;
+    transition: border-color .12s ease, box-shadow .12s ease, width .15s ease;
+  }
+  #actbar .ab-find::placeholder { color: #8c959f; }
+  #actbar .ab-find:focus { border-color: #0969da; width: 152px; box-shadow: 0 0 0 2px rgba(9, 105, 218, .14); }
+  body.dark #actbar .ab-find { background: #0d1117; color: #c9d1d9; border-color: #30363d; }
+  body.dark #actbar .ab-find::placeholder { color: #6e7681; }
+  body.dark #actbar .ab-find:focus { border-color: #1f6feb; box-shadow: 0 0 0 2px rgba(31, 111, 235, .2); }
+  body.beige #actbar .ab-find { background: #fffdf7; color: #4a3b28; border-color: #d8cba8; }
+  body.beige #actbar .ab-find::placeholder { color: #a08c68; }
+  body.beige #actbar .ab-find:focus { border-color: #a07d1c; box-shadow: 0 0 0 2px rgba(160, 125, 28, .16); }
   /* 高亮当前颜色小方块 */
   #actbar .hl-chip {
     width: 11px; height: 11px; border-radius: 3px;
@@ -979,6 +995,9 @@
         <span class="ab-zoom" id="zoomPct" title="正文字号，点一下恢复 100%（Ctrl+0）">100%</span>
         <button class="ab-btn icon" id="zoomInBtn" title="放大正文字号（Ctrl+滚轮 或 Ctrl+=）">A+</button>
         <button class="ab-btn" id="fitBtn" title="适应窗口：正文字号随窗口大小自动调整">适应窗口</button>
+        <span class="ab-sep"></span>
+        <input id="topFind" class="ab-find" type="text" placeholder="搜索" spellcheck="false"
+               title="在本文中查找：输入即搜，Enter 下一个，Shift+Enter 上一个，Esc 关闭">
       </div>
     </div>
   </div>
@@ -1786,6 +1805,8 @@
       findQuery = q || "";
       var inp = document.getElementById("findInput");
       if (inp) inp.value = findQuery;
+      var tf = document.getElementById("topFind");      // 与工具栏搜索框保持同词
+      if (tf && tf.value !== findQuery) tf.value = findQuery;
       var t = activeTab();
       if (!t) { findMarks = []; findIdx = -1; updateFindCount(); return; }
       var d = editDocOf(t);
@@ -1911,7 +1932,7 @@
       document.getElementById("findReplOne").addEventListener("click", function () { replaceOne(); rin.focus(); });
       document.getElementById("findReplAll").addEventListener("click", function () { replaceAll(); rin.focus(); });
     }
-    function openFind(showReplace) {
+    function openFind(showReplace, keepFocus) {
       buildFindBar();
       var bar = document.getElementById("findbar");
       if (bar) bar.style.display = "flex";
@@ -1922,6 +1943,7 @@
         var rtog = document.getElementById("findRtoggle");
         if (rtog) rtog.classList.add("on");
       }
+      if (keepFocus) return;   // 从工具栏搜索框进来的：焦点留在搜索框里接着打字
       var inp = document.getElementById("findInput");
       var rin = document.getElementById("findReplace");
       // 已有查找词又开了替换栏 → 焦点直接给「替换为」，贴近 Excel 习惯
@@ -4680,6 +4702,26 @@
         });
         var fbtn = document.getElementById("findBtn");
         if (fbtn) fbtn.addEventListener("click", function (e) { e.stopPropagation(); openFind(); });
+        // 工具栏最右侧的快捷搜索框：输入即搜，Enter/Shift+Enter 跳转，Esc 关闭
+        var tf = document.getElementById("topFind");
+        if (tf) {
+          tf.addEventListener("input", function () {
+            openFind(false, true);      // 焦点留在搜索框，别跳去查找栏
+            runFind(tf.value);
+          });
+          tf.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (!findActive) { openFind(false, true); runFind(tf.value); }
+              if (e.shiftKey) findPrev(); else findNext();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              closeFind();
+              tf.blur();
+            }
+            e.stopPropagation();
+          });
+        }
         // Ctrl+滚轮：自己接管，只缩放正文；界面之所以不跟着变大，是因为 zoom 只加在
         // 每个标签页 iframe 的 <html> 上（父页面一个像素都不缩放）。preventDefault
         // 同时也挡住 WebView2 自带的整页缩放，避免两套缩放叠加。
