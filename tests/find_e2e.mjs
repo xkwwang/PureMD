@@ -1,8 +1,9 @@
 // -*- mode: js -*-
-// 查找功能 e2e（Ctrl+F）：用冻结在 md_preview_app/_build_test 的临时 exe 验证
+// 查找/替换功能 e2e（Ctrl+F / Ctrl+H）：用冻结在 md_preview_app/_build_test 的临时 exe 验证
 //   1) Ctrl+F 打开查找栏；输入即高亮正文里的匹配（区分大小写可切换）
 //   2) 匹配数 / 当前序号显示正确，Enter / Shift+Enter 前后跳转
 //   3) 关掉查找栏会清除高亮
+//   4) Ctrl+H 打开替换：单个替换 / 全部替换；保存后源文件正确写回且无高亮污染
 // 单窗口即可，不触碰用户正在用的真实实例（独立 APPDATA + 独立 build 目录）。
 import { spawn, execFileSync } from "child_process";
 import { existsSync, readdirSync, readFileSync, rmSync, mkdirSync, writeFileSync } from "fs";
@@ -160,6 +161,58 @@ async function main() {
   const afterEsc = await cdp.eval("document.querySelector('#views iframe').contentDocument.querySelectorAll('mark.pm-find').length");
   check(hidden1, "Esc 后查找栏应隐藏");
   check(afterEsc === 0, "Esc 关闭后高亮应清除 (got " + afterEsc + ")");
+
+  // ===== 替换功能（Ctrl+H）=====
+  console.log("== Ctrl+H 打开替换 ==");
+  await cdp.eval(`(()=>{var fr=document.querySelector('#views iframe');fr.contentDocument.dispatchEvent(new KeyboardEvent('keydown',{key:'h',ctrlKey:true,bubbles:true}));})()`);
+  await sleep(400);
+  // 前面「区分大小写」步骤勾选后一直保留着，这里取消，恢复不区分大小写
+  await cdp.eval(`(()=>{var c=document.getElementById('findCs');if(c.checked){c.checked=false;c.dispatchEvent(new Event('change',{bubbles:true}));}})()`);
+  await sleep(200);
+  const rrowOn = await cdp.eval("document.getElementById('findRrow').classList.contains('on')");
+  check(rrowOn, "Ctrl+H 后替换行应展开");
+  const barShown2 = await cdp.eval("document.getElementById('findbar').style.display==='flex'");
+  check(barShown2, "Ctrl+H 后查找栏应显示");
+
+  // 查找 apple → 5 处；替换为 pear
+  await cdp.eval(`(()=>{var i=document.getElementById('findInput');i.value='apple';i.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await sleep(300);
+  await cdp.eval(`(()=>{document.getElementById('findReplace').value='pear';})()`);
+  const nBefore = await cdp.eval("document.querySelector('#views iframe').contentDocument.querySelectorAll('mark.pm-find').length");
+  check(nBefore === 5, "替换前应命中 5 处 (got " + nBefore + ")");
+
+  // 单个替换 → 剩 4 处，第一段变 pear apple apple，且标记未保存
+  await cdp.eval("document.getElementById('findReplOne').click()");
+  await sleep(300);
+  const nAfterOne = await cdp.eval("document.querySelector('#views iframe').contentDocument.querySelectorAll('mark.pm-find').length");
+  check(nAfterOne === 4, "单个替换后应剩 4 处 (got " + nAfterOne + ")");
+  const p1 = await cdp.eval("document.querySelector('#views iframe').contentDocument.querySelectorAll('.markdown-body p')[0].textContent");
+  check(p1 === "pear apple apple", "第一段应为 pear apple apple (got " + JSON.stringify(p1) + ")");
+  const dirty1 = await cdp.eval("EDITED[activeTab().id] === true");
+  check(dirty1, "替换后应标记为未保存");
+
+  // 全部替换 → 高亮清零，正文无 apple（含原大写 Apple → Pear）
+  await cdp.eval("document.getElementById('findReplAll').click()");
+  await sleep(300);
+  const nAfterAll = await cdp.eval("document.querySelector('#views iframe').contentDocument.querySelectorAll('mark.pm-find').length");
+  check(nAfterAll === 0, "全部替换后应无高亮 (got " + nAfterAll + ")");
+  const bodyTxt = await cdp.eval("document.querySelector('#views iframe').contentDocument.querySelector('.markdown-body').textContent");
+  check(!/apple/i.test(bodyTxt), "全部替换后正文不应再有 apple");
+  check(/banana pear pear/.test(bodyTxt), "正文应为 banana pear pear（替换文本按字面插入，同 Excel）");
+
+  // 点「保存」→ 源文件写回 pear；且无 == / pm-find 高亮污染
+  await cdp.eval("document.getElementById('saveBtn').click()");
+  let savedTxt = "";
+  for (let i = 0; i < 30; i++) {
+    await sleep(300);
+    try { savedTxt = readFileSync(md, "utf8"); } catch (e) {}
+    if (/pear/i.test(savedTxt)) break;
+  }
+  check(/pear/i.test(savedTxt), "保存后源文件应含 pear");
+  check(!/apple/i.test(savedTxt), "保存后源文件不应再有 apple");
+  check(!savedTxt.includes("==") && !savedTxt.includes("pm-find"), "源文件不应有高亮标记污染");
+  const expected = "# Heading\n\npear pear pear\n\nbanana pear pear\n";
+  check(savedTxt.replace(/\r\n/g, "\n") === expected, "源文件内容应与预期一致 (got " + JSON.stringify(savedTxt) + ")");
 
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   cdp.close();

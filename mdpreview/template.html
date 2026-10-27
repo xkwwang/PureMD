@@ -2733,6 +2733,17 @@
 
     // 把当前 DOM 拼回 Markdown：未改动的块沿用原文，只重写被改过的块
     function buildText() {
+      // 查找高亮（mark.pm-find）是临时标记：拼回前必须先还原成纯文本。
+      // 否则①块快照比对会把带高亮的块误判成"改过"，导致整块重排；
+      // ②inlineMD 会把 mark 序列化成 ==文字==，污染源文件。
+      try {
+        var fms = content.querySelectorAll('mark.pm-find');
+        for (var fi = fms.length - 1; fi >= 0; fi--) {
+          var fm = fms[fi];
+          fm.parentNode.replaceChild(document.createTextNode(fm.textContent), fm);
+        }
+        if (fms.length) content.normalize();
+      } catch (e) {}
       // 统一按 \n 切行（源文件可能是 CRLF，行号来自 markdown-it 的 \n 切分，一致）；
       // 写回时由 Python 侧按原文件的换行风格还原。
       var lines = baseText.split(/\r?\n/);

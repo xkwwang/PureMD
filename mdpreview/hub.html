@@ -291,10 +291,10 @@
   body.dark #hlPick { background: #161b22; border-color: #30363d; box-shadow: 0 6px 20px rgba(0, 0, 0, .6); }
   body.beige #hlPick { background: #f4ecd8; border-color: #d8cba8; }
 
-  /* ---- 查找栏（Ctrl+F）---- */
+  /* ---- 查找/替换栏（Ctrl+F / Ctrl+H）---- */
   .findbar {
     position: absolute; top: 8px; right: 14px; z-index: 60;
-    display: none; align-items: center; gap: 6px;
+    display: none; flex-direction: column; align-items: stretch; gap: 5px;
     background: #fff; color: #24292f; border: 1px solid #d0d7de; border-radius: 8px;
     box-shadow: 0 6px 20px rgba(0,0,0,.18); padding: 6px 8px; font-size: 13px;
   }
@@ -322,6 +322,14 @@
   .findbar .find-cs { font-size: 12px; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; user-select: none; white-space: nowrap; }
   .findbar .find-sep { width: 1px; height: 18px; background: #d0d7de; margin: 0 2px; }
   body.dark .findbar .find-sep { background: #30363d; }
+  /* 替换行：默认收起，点「替换」钮或 Ctrl+H 展开 */
+  .findbar .find-row { display: flex; align-items: center; gap: 6px; }
+  .findbar .find-rrow { display: none; }
+  .findbar .find-rrow.on { display: flex; }
+  .findbar .find-btn.find-wide { min-width: 0; padding: 0 10px; }
+  .findbar .find-btn.on { border-color: #0969da; background: #ddf4ff; }
+  body.dark .findbar .find-btn.on { border-color: #1f6feb; background: #1c3255; }
+  body.beige .findbar .find-btn.on { border-color: #a07d1c; background: #ecd9a0; }
   #hlPick .hl-row { display: flex; gap: 7px; }
   #hlPick .hl-sw { width: 18px; height: 18px; }
   /* 顶部 chrome：第一行 = 自绘标题栏（PureMD 文字 + 工具栏 + 窗口控制），第二行 = 标签栏 */
@@ -921,7 +929,7 @@
         <button class="toolbtn" id="openBtn">打开</button>
         <button class="toolbtn" id="exportBtn" title="导出：PDF / Word（.docx）">导出</button>
         <button class="toolbtn" id="reloadBtn">重新加载</button>
-        <button class="toolbtn" id="findBtn" title="在本文中查找（Ctrl+F）">查找</button>
+        <button class="toolbtn" id="findBtn" title="查找 / 替换（Ctrl+F / Ctrl+H）">查找</button>
         <button class="toolbtn" id="helpBtn" title="帮助：反馈问题 / 关于本软件">帮助</button>
         <label><input type="checkbox" id="watchChk"> 自动刷新</label>
       </div>
@@ -1774,7 +1782,7 @@
       }
     }
     var findRetryTimer = null;
-    function runFind(q) {
+    function runFind(q, focusIdx) {
       findQuery = q || "";
       var inp = document.getElementById("findInput");
       if (inp) inp.value = findQuery;
@@ -1797,24 +1805,70 @@
       var cs = document.getElementById("findCs");
       cs = cs ? cs.checked : false;
       findWalk(root, findQuery, cs, findMarks);
-      if (findMarks.length) focusMark(0);
+      if (findMarks.length) focusMark(typeof focusIdx === "number" ? focusIdx : 0);
       else updateFindCount();
     }
     function findNext() { if (findMarks.length) focusMark(findIdx + 1); }
     function findPrev() { if (findMarks.length) focusMark(findIdx - 1); }
+    // ---- 替换（替换只改显示内容并标记未保存；点「保存」/ Ctrl+S 才写回源文件）----
+    function replaceOne() {
+      var t = activeTab();
+      var d = editDocOf(t);
+      if (!t || !d) return;
+      if (!findQuery) { setStatus("先输入要查找的内容"); return; }
+      if (!findMarks.length) { runFind(findQuery); if (!findMarks.length) setStatus("找不到「" + findQuery + "」"); return; }
+      var cur = findIdx;
+      var m = findMarks[cur];
+      if (!m || !m.parentNode) { runFind(findQuery, cur); return; }
+      var rin = document.getElementById("findReplace");
+      var rep = rin ? rin.value : "";
+      m.parentNode.replaceChild(d.createTextNode(rep), m);
+      try { d.normalize(); } catch (e0) {}
+      markDirty(t);
+      runFind(findQuery, cur);   // 原地重查：原位置空出来后，同一序号即“下一个”匹配
+      setStatus("已替换 1 处；点「保存」或 Ctrl+S 写回源文件");
+    }
+    function replaceAll() {
+      var t = activeTab();
+      var d = editDocOf(t);
+      if (!t || !d) return;
+      if (!findQuery) { setStatus("先输入要查找的内容"); return; }
+      if (!findMarks.length) runFind(findQuery);
+      if (!findMarks.length) { setStatus("找不到「" + findQuery + "」"); return; }
+      var rin = document.getElementById("findReplace");
+      var rep = rin ? rin.value : "";
+      var ms = findMarks.slice(), n = ms.length;
+      for (var i = 0; i < n; i++) {
+        var m = ms[i];
+        if (m.parentNode) m.parentNode.replaceChild(d.createTextNode(rep), m);
+      }
+      try { d.normalize(); } catch (e0) {}
+      markDirty(t);
+      runFind(findQuery);        // 重查：替换后的文本若仍含关键词会如实显示
+      setStatus("已替换 " + n + " 处；点「保存」或 Ctrl+S 写回源文件");
+    }
     function buildFindBar() {
       if (document.getElementById("findbar")) return;
       var bar = document.createElement("div");
       bar.id = "findbar"; bar.className = "findbar";
       bar.innerHTML =
-        '<input id="findInput" class="find-input" type="text" placeholder="查找…  (Ctrl+F)" spellcheck="false">' +
-        '<span id="findCount" class="find-count"></span>' +
-        '<button id="findPrev" class="find-btn" title="上一个 (Shift+Enter)">&#9650;</button>' +
-        '<button id="findNext" class="find-btn" title="下一个 (Enter)">&#9660;</button>' +
-        '<span class="find-sep"></span>' +
-        '<label class="find-cs" title="区分大小写"><input type="checkbox" id="findCs"> 区分大小写</label>' +
-        '<span class="find-sep"></span>' +
-        '<button id="findClose" class="find-btn" title="关闭 (Esc)">&#10005;</button>';
+        '<div class="find-row">' +
+          '<input id="findInput" class="find-input" type="text" placeholder="查找…  (Ctrl+F)" spellcheck="false">' +
+          '<span id="findCount" class="find-count"></span>' +
+          '<button id="findPrev" class="find-btn" title="上一个 (Shift+Enter)">&#9650;</button>' +
+          '<button id="findNext" class="find-btn" title="下一个 (Enter)">&#9660;</button>' +
+          '<span class="find-sep"></span>' +
+          '<label class="find-cs" title="区分大小写"><input type="checkbox" id="findCs"> 区分大小写</label>' +
+          '<span class="find-sep"></span>' +
+          '<button id="findRtoggle" class="find-btn find-wide" title="替换（Ctrl+H）">替换</button>' +
+          '<span class="find-sep"></span>' +
+          '<button id="findClose" class="find-btn" title="关闭 (Esc)">&#10005;</button>' +
+        '</div>' +
+        '<div class="find-row find-rrow" id="findRrow">' +
+          '<input id="findReplace" class="find-input" type="text" placeholder="替换为…" spellcheck="false">' +
+          '<button id="findReplOne" class="find-btn find-wide" title="替换当前这一处（Enter）">替换</button>' +
+          '<button id="findReplAll" class="find-btn find-wide" title="替换全部匹配">全部替换</button>' +
+        '</div>';
       var main = document.getElementById("main");
       (main || document.body).appendChild(bar);
       var inp = document.getElementById("findInput");
@@ -1832,14 +1886,47 @@
       document.getElementById("findClose").addEventListener("click", function () { closeFind(); });
       var csel = document.getElementById("findCs");
       csel.addEventListener("change", function () { runFind(document.getElementById("findInput").value); });
+      // ---- 替换行 ----
+      var rtog = document.getElementById("findRtoggle");
+      rtog.addEventListener("click", function () {
+        var rr = document.getElementById("findRrow");
+        var on = !rr.classList.contains("on");
+        rr.classList.toggle("on", on);
+        rtog.classList.toggle("on", on);
+        if (on) {
+          var fi = document.getElementById("findInput");
+          var rin = document.getElementById("findReplace");
+          if (fi && fi.value && rin) rin.focus(); else if (fi) fi.focus();
+        }
+      });
+      var rin = document.getElementById("findReplace");
+      rin.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); replaceOne(); }
+        else if (e.key === "Escape") { e.preventDefault(); closeFind(); }
+        else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === "f" || e.key === "F")) {
+          e.preventDefault(); inp.focus(); inp.select();
+        }
+        e.stopPropagation();
+      });
+      document.getElementById("findReplOne").addEventListener("click", function () { replaceOne(); rin.focus(); });
+      document.getElementById("findReplAll").addEventListener("click", function () { replaceAll(); rin.focus(); });
     }
-    function openFind() {
+    function openFind(showReplace) {
       buildFindBar();
       var bar = document.getElementById("findbar");
       if (bar) bar.style.display = "flex";
       findActive = true;
+      if (showReplace) {
+        var rr = document.getElementById("findRrow");
+        if (rr) rr.classList.add("on");
+        var rtog = document.getElementById("findRtoggle");
+        if (rtog) rtog.classList.add("on");
+      }
       var inp = document.getElementById("findInput");
-      if (inp) { inp.focus(); inp.select(); }
+      var rin = document.getElementById("findReplace");
+      // 已有查找词又开了替换栏 → 焦点直接给「替换为」，贴近 Excel 习惯
+      if (showReplace && rin && inp && inp.value) rin.focus();
+      else if (inp) { inp.focus(); inp.select(); }
     }
     function closeFind() {
       findActive = false;
@@ -4082,6 +4169,9 @@
           if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && !ev.altKey && (ev.key === "f" || ev.key === "F")) {
             ev.preventDefault(); openFind(); return;
           }
+          if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && !ev.altKey && (ev.key === "h" || ev.key === "H")) {
+            ev.preventDefault(); openFind(true); return;
+          }
           if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && (ev.key === "s" || ev.key === "S")) {
             ev.preventDefault();                 // 焦点在正文里时 Ctrl+S 也要能存
             saveTab(t);
@@ -4364,6 +4454,7 @@
       if (text === pm.baseText()) {
         delete EDITED[t.id];
         updateEditUI();
+        if (findActive) onTabActivated();   // buildText 已把查找高亮还原，重贴
         setStatus("没有改动，无需保存");
         if (opts.leave) reallyLeave(t);
         return;
@@ -4385,6 +4476,7 @@
             applyTheme(t.iframe);
             hlAttachTo(t);
             applyHighlightsFor(t);           // 本机只读标注重新贴回（它们没写进文件）
+            if (findActive) onTabActivated(); // 查找高亮随重渲染丢了，重新贴回
             if (sbMode === "toc" && t.id === activeId) buildOutline(0);
             if (sbMode === "hl" && t.id === activeId) renderHlList();
           } catch (e) {}
@@ -4570,6 +4662,9 @@
           if (e.key === "Escape") closeHlPick();
           if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === "f" || e.key === "F")) {
             e.preventDefault(); openFind(); return;
+          }
+          if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === "h" || e.key === "H")) {
+            e.preventDefault(); openFind(true); return;
           }
           if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey &&
               (e.key === "b" || e.key === "B")) {
