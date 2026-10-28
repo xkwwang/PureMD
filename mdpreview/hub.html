@@ -75,6 +75,17 @@
   /* 拖拽调整标签顺序 */
   .tab.dragging { opacity: .45; }
   .tab:active { cursor: grabbing; }
+  /* 标签之间的竖向分隔线（画在标签右缘，避免被激活态阴影遮挡） */
+  .tab:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    right: -1px; top: 7px; bottom: 7px;
+    width: 1px;
+    background: #c8d0d8;
+    pointer-events: none;
+  }
+  body.dark .tab:not(:last-child)::after { background: #30363d; }
+  body.beige .tab:not(:last-child)::after { background: #d3c5a0; }
   /* 标签栏按钮：箭头/列表图标用 flex 双向居中 */
   .nav {
     display: inline-flex; align-items: center; justify-content: center;
