@@ -1894,6 +1894,7 @@
       (main || document.body).appendChild(bar);
       var inp = document.getElementById("findInput");
       inp.addEventListener("keydown", function (e) {
+        if (e.isComposing) return;   // 组字进行中：Enter/Esc 等交给输入法，绝不拦截
         if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === "f" || e.key === "F")) {
           e.preventDefault(); inp.select(); return;
         }
@@ -1901,7 +1902,11 @@
         else if (e.key === "Escape") { e.preventDefault(); closeFind(); }
         e.stopPropagation();
       });
-      inp.addEventListener("input", function () { runFind(inp.value); });
+      inp.addEventListener("input", function (e) {
+        if (e.isComposing) return;   // 组字未结束不处理，避免打断输入法预测词组
+        runFind(inp.value);
+      });
+      inp.addEventListener("compositionend", function () { runFind(inp.value); });
       document.getElementById("findNext").addEventListener("click", function () { findNext(); document.getElementById("findInput").focus(); });
       document.getElementById("findPrev").addEventListener("click", function () { findPrev(); document.getElementById("findInput").focus(); });
       document.getElementById("findClose").addEventListener("click", function () { closeFind(); });
@@ -1922,6 +1927,7 @@
       });
       var rin = document.getElementById("findReplace");
       rin.addEventListener("keydown", function (e) {
+        if (e.isComposing) return;   // 组字进行中：Enter 用于确认候选，不触发替换
         if (e.key === "Enter") { e.preventDefault(); replaceOne(); }
         else if (e.key === "Escape") { e.preventDefault(); closeFind(); }
         else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === "f" || e.key === "F")) {
@@ -4233,7 +4239,8 @@
           })(sws[i]);
         }
         if (note) {
-          note.addEventListener("input", function () {
+          note.addEventListener("input", function (e) {
+            if (e.isComposing) return;   // 组字进行中不处理，避免打断输入法（侧栏批注也打中文）
             if (hlMode === "new" && hlPending) {
               if (!hlCreateFromPending(hlColor)) return;
             }
@@ -4705,11 +4712,17 @@
         // 工具栏最右侧的快捷搜索框：输入即搜，Enter/Shift+Enter 跳转，Esc 关闭
         var tf = document.getElementById("topFind");
         if (tf) {
-          tf.addEventListener("input", function () {
+          tf.addEventListener("input", function (e) {
+            if (e.isComposing) return;   // 组字未结束不处理，避免打断输入法预测词组
             openFind(false, true);      // 焦点留在搜索框，别跳去查找栏
             runFind(tf.value);
           });
+          tf.addEventListener("compositionend", function () {
+            openFind(false, true);
+            runFind(tf.value);
+          });
           tf.addEventListener("keydown", function (e) {
+            if (e.isComposing) return;   // 组字进行中：Enter 用于确认候选，不拦截
             if (e.key === "Enter") {
               e.preventDefault();
               if (!findActive) { openFind(false, true); runFind(tf.value); }

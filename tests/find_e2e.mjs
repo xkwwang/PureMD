@@ -240,6 +240,48 @@ async function main() {
   const tfMarks0 = await cdp.eval("document.querySelector('#views iframe').contentDocument.querySelectorAll('mark.pm-find').length");
   check(tfMarks0 === 0, "搜索框 Esc 后高亮应清除 (got " + tfMarks0 + ")");
 
+  // ===== 输入法组合（composition）守卫：组字中不打断，compositionend 才搜 =====
+  // 这正是“矽卡岩”等词组在搜索框里打不出来的根因修复——避免每键重排 DOM / 改写
+  // value 把输入法组字打断，导致词组预测永远来不及上屏。
+  console.log("== 输入法组合守卫 ==");
+  const marksNow = () => cdp.eval("document.querySelector('#views iframe').contentDocument.querySelectorAll('mark.pm-find').length");
+  await cdp.eval("openFind(false,true);");
+  // 工具栏搜索框：组字进行中不应触发查找
+  await cdp.eval(`(()=>{
+    var t=document.getElementById('topFind'); t.value='pear';
+    t.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));
+    t.dispatchEvent(new InputEvent('input',{bubbles:true,isComposing:true}));
+  })()`);
+  await sleep(150);
+  const compTop = await marksNow();
+  check(compTop === 0, "组字进行中 topFind 不应查找（mark=0）(got " + compTop + ")");
+  await cdp.eval(`(()=>{
+    var t=document.getElementById('topFind');
+    t.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}));
+    t.dispatchEvent(new InputEvent('input',{bubbles:true,isComposing:false}));
+  })()`);
+  await sleep(250);
+  const compTop2 = await marksNow();
+  check(compTop2 === 5, "compositionend 后 topFind 应查到 5 处 (got " + compTop2 + ")");
+  // 查找栏输入框：同理
+  await cdp.eval("closeFind(); openFind(false,true);");
+  await cdp.eval(`(()=>{
+    var i=document.getElementById('findInput'); i.value='pear';
+    i.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));
+    i.dispatchEvent(new InputEvent('input',{bubbles:true,isComposing:true}));
+  })()`);
+  await sleep(150);
+  const compFi = await marksNow();
+  check(compFi === 0, "组字进行中 findInput 不应查找（mark=0）(got " + compFi + ")");
+  await cdp.eval(`(()=>{
+    var i=document.getElementById('findInput');
+    i.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}));
+    i.dispatchEvent(new InputEvent('input',{bubbles:true,isComposing:false}));
+  })()`);
+  await sleep(250);
+  const compFi2 = await marksNow();
+  check(compFi2 === 5, "compositionend 后 findInput 应查到 5 处 (got " + compFi2 + ")");
+
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   cdp.close();
   killMine();
